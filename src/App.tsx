@@ -1,13 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { OrchidSpecies, KDPGuideSettings, ConservationStatus } from './types';
+import { OrchidSpecies, ConservationStatus } from './types';
 import { INITIAL_SPECIES_LIST } from './data/speciesData';
-import { OrchidCard6x9 } from './components/OrchidCard6x9';
 import { MobileBotanicalView } from './components/MobileBotanicalView';
 import { MexicoDistributionMap } from './components/MexicoDistributionMap';
 import { OrchidEditorDrawer } from './components/OrchidEditorDrawer';
 import { ContinuousIndexModal } from './components/ContinuousIndexModal';
 import { GoogleDocsExportModal } from './components/GoogleDocsExportModal';
-import { KdpSettingsModal } from './components/KdpSettingsModal';
 import { BackupModal } from './components/BackupModal';
 import { AdminAuthModal } from './components/AdminAuthModal';
 import { 
@@ -24,27 +22,18 @@ import {
   Search,
   BookOpen,
   FileText,
-  Printer,
   Edit3,
   Shuffle,
   Grid,
-  Maximize2,
-  ZoomIn,
-  ZoomOut,
   Sparkles,
-  Camera,
-  Share2,
-  Download,
-  RotateCcw,
-  Check,
-  Layers,
   ShieldCheck,
-  Smartphone,
   Globe,
-  MoreVertical,
   Lock,
   Sliders,
-  CheckCircle2,
+  Wifi,
+  WifiOff,
+  Download,
+  Share2,
   Compass
 } from 'lucide-react';
 
@@ -73,23 +62,26 @@ export default function App() {
     return localStorage.getItem('atlas_admin_active') === 'true';
   });
 
-  // Responsive screen width detection
-  const [windowWidth, setWindowWidth] = useState<number>(() => {
-    return typeof window !== 'undefined' ? window.innerWidth : 1024;
+  // Online / Offline Detection
+  const [isOnline, setIsOnline] = useState<boolean>(() => {
+    return typeof navigator !== 'undefined' ? navigator.onLine : true;
   });
 
   useEffect(() => {
-    const handleResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
-  const isMobile = windowWidth < 768;
-
-  // View Mode: 'mobile' (fluid reading on phone), 'card6x9' (exact KDP Canva layout), 'map', 'grid'
-  const [viewMode, setViewMode] = useState<'mobile' | 'card6x9' | 'map' | 'grid'>(() => {
-    return typeof window !== 'undefined' && window.innerWidth < 768 ? 'mobile' : 'card6x9';
-  });
+  // View Mode: 'botanical' (fluid mobile/desktop card), 'map', 'grid'
+  const [viewMode, setViewMode] = useState<'botanical' | 'map' | 'grid'>('botanical');
 
   // Current species index (find Acianthera johnsonii or default to 0)
   const defaultIdx = useMemo(() => {
@@ -98,7 +90,6 @@ export default function App() {
   }, [speciesList]);
 
   const [currentIndex, setCurrentIndex] = useState<number>(defaultIdx);
-  const [zoomLevel, setZoomLevel] = useState<number>(0.92);
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -110,19 +101,9 @@ export default function App() {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
   const [isGoogleDocsModalOpen, setIsGoogleDocsModalOpen] = useState(false);
-  const [isKdpModalOpen, setIsKdpModalOpen] = useState(false);
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isToolsDropdownOpen, setIsToolsDropdownOpen] = useState(false);
-
-  // KDP Print & Bleed Settings
-  const [kdpGuides, setKdpGuides] = useState<KDPGuideSettings>({
-    showTrimLine: false,
-    showBleedArea: false,
-    showSafeZone: false,
-    showGutterMargin: false,
-    spineSide: 'left'
-  });
 
   // Auth listener
   useEffect(() => {
@@ -138,6 +119,7 @@ export default function App() {
 
   // Listen to Firestore real-time cloud edits so changes by the owner stay for EVERYONE
   useEffect(() => {
+    if (!navigator.onLine) return;
     const unsubscribe = subscribeToCloudEdits((cloudEdits) => {
       setSpeciesList(prev => {
         let changed = false;
@@ -152,9 +134,9 @@ export default function App() {
       });
     });
     return () => unsubscribe();
-  }, []);
+  }, [isOnline]);
 
-  // Save to localStorage whenever speciesList changes
+  // Save to localStorage whenever speciesList changes (guarantees offline availability)
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(speciesList));
@@ -165,15 +147,6 @@ export default function App() {
 
   // Current active species
   const currentSpecies: OrchidSpecies = speciesList[currentIndex] || speciesList[0];
-
-  // Auto-fit scale for 6x9 Canva card on mobile: NO CUT-OFFS EVER!
-  const effectiveCardScale = useMemo(() => {
-    if (windowWidth >= 768) return zoomLevel;
-    // On phones (e.g. 360px - 412px), calculate exact factor so 560px fits screen with padding
-    const padding = 20;
-    const availableWidth = Math.max(280, windowWidth - padding);
-    return Math.min(1, availableWidth / 560);
-  }, [windowWidth, zoomLevel]);
 
   // Distinct Genera list
   const popularGenera = useMemo(() => {
@@ -260,7 +233,9 @@ export default function App() {
         const merged = { ...copy[targetIdx], ...updated };
         copy[targetIdx] = merged;
         // Save to cloud Firestore so it stays for EVERYONE
-        saveSpeciesToFirestore(merged);
+        if (navigator.onLine) {
+          saveSpeciesToFirestore(merged);
+        }
       }
       return copy;
     });
@@ -273,7 +248,9 @@ export default function App() {
     }
     setSpeciesList(prev => [...prev, newSpecies]);
     setCurrentIndex(speciesList.length);
-    saveSpeciesToFirestore(newSpecies);
+    if (navigator.onLine) {
+      saveSpeciesToFirestore(newSpecies);
+    }
   };
 
   const handleResetData = () => {
@@ -303,11 +280,11 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#080d19] text-slate-100 flex flex-col font-sans select-none antialiased">
       {/* ===================== SLEEK BOTANICAL APP HEADER ===================== */}
-      <header className="no-print bg-slate-950/95 backdrop-blur-md border-b border-slate-800/80 px-3 sm:px-6 py-2 sticky top-0 z-40 shadow-lg">
+      <header className="no-print bg-slate-950/95 backdrop-blur-md border-b border-slate-800/80 px-3 sm:px-6 py-2.5 sticky top-0 z-40 shadow-lg">
         <div className="flex items-center justify-between gap-2 max-w-7xl mx-auto">
           {/* Logo & Brand */}
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-emerald-400 text-slate-950 flex items-center justify-center font-black text-base shadow-sm flex-shrink-0">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-emerald-400 text-slate-950 flex items-center justify-center font-black text-base shadow-md flex-shrink-0">
               🪻
             </div>
             <div>
@@ -325,6 +302,16 @@ export default function App() {
                 <span className="text-emerald-400">
                   {speciesList.filter(s => s.isEndemic).length} endémicas
                 </span>
+                <span>•</span>
+                {!isOnline ? (
+                  <span className="text-amber-400 flex items-center gap-0.5">
+                    <WifiOff className="w-3 h-3" /> Sin internet (Offline)
+                  </span>
+                ) : (
+                  <span className="text-emerald-400 flex items-center gap-0.5">
+                    <Wifi className="w-3 h-3" /> Conectado
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -335,7 +322,7 @@ export default function App() {
               <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
               <input
                 type="text"
-                placeholder="Buscar #, nombre científico o estado..."
+                placeholder="Buscar por #, nombre botánico o estado..."
                 value={jumpInput}
                 onChange={e => setJumpInput(e.target.value)}
                 className="w-full bg-slate-900/90 border border-slate-700/80 rounded-full pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-hidden focus:border-amber-400 transition-all shadow-inner"
@@ -348,44 +335,51 @@ export default function App() {
             {/* View Mode Switcher for Desktop */}
             <div className="hidden md:flex items-center bg-slate-900 border border-slate-800 rounded-xl p-0.5 text-xs">
               <button
-                onClick={() => setViewMode('mobile')}
-                className={`px-2.5 py-1 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
-                  viewMode === 'mobile'
+                onClick={() => setViewMode('botanical')}
+                className={`px-3 py-1 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                  viewMode === 'botanical'
                     ? 'bg-emerald-600 text-white shadow-xs font-semibold'
                     : 'text-slate-400 hover:text-white'
                 }`}
-                title="Vista móvil adaptativa"
+                title="Ficha botánica de la especie"
               >
-                <Smartphone className="w-3.5 h-3.5" />
-                <span>Móvil</span>
-              </button>
-
-              <button
-                onClick={() => setViewMode('card6x9')}
-                className={`px-2.5 py-1 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
-                  viewMode === 'card6x9'
-                    ? 'bg-amber-500 text-slate-950 shadow-xs font-bold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-                title="Ficha editorial 6x9 Canva / KDP"
-              >
-                <Layers className="w-3.5 h-3.5" />
-                <span>6" × 9" KDP</span>
+                <span>🌿 Ficha Botánica</span>
               </button>
 
               <button
                 onClick={() => setViewMode('map')}
-                className={`px-2.5 py-1 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                className={`px-3 py-1 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
                   viewMode === 'map'
                     ? 'bg-blue-600 text-white shadow-xs font-semibold'
                     : 'text-slate-400 hover:text-white'
                 }`}
-                title="Mapa de distribución de México"
+                title="Mapa de distribución geográfica de México"
               >
                 <Globe className="w-3.5 h-3.5" />
-                <span>Mapa</span>
+                <span>Mapa de México</span>
+              </button>
+
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`px-3 py-1 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                  viewMode === 'grid'
+                    ? 'bg-amber-500 text-slate-950 shadow-xs font-bold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Galería / Catálogo general"
+              >
+                <Grid className="w-3.5 h-3.5" />
+                <span>Catálogo</span>
               </button>
             </div>
+
+            {/* Offline Status Badge on Mobile */}
+            {!isOnline && (
+              <span className="md:hidden px-2 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-xl text-[10px] font-bold flex items-center gap-1">
+                <WifiOff className="w-3 h-3" />
+                <span>Offline</span>
+              </span>
+            )}
 
             {/* Author / Access Badge */}
             <button
@@ -405,7 +399,7 @@ export default function App() {
               ) : (
                 <>
                   <Lock className="w-3 h-3 text-slate-400" />
-                  <span className="hidden lg:inline text-[11px]">Acceso Autor</span>
+                  <span className="hidden lg:inline text-[11px]">Autor</span>
                 </>
               )}
             </button>
@@ -418,7 +412,7 @@ export default function App() {
                 title="Herramientas y exportación"
               >
                 <Sliders className="w-3.5 h-3.5 text-slate-400" />
-                <span className="hidden sm:inline">Herramientas</span>
+                <span className="hidden sm:inline">Menú</span>
               </button>
 
               {isToolsDropdownOpen && (
@@ -440,13 +434,6 @@ export default function App() {
                     >
                       <FileText className="w-4 h-4 text-blue-400" />
                       <span>Exportar a Google Docs</span>
-                    </button>
-                    <button
-                      onClick={() => setIsKdpModalOpen(true)}
-                      className="w-full px-3.5 py-2 text-left hover:bg-slate-800 flex items-center gap-2.5"
-                    >
-                      <Printer className="w-4 h-4 text-emerald-400" />
-                      <span>Imprimir / PDF 6" × 9"</span>
                     </button>
                     <button
                       onClick={() => setIsBackupModalOpen(true)}
@@ -532,127 +519,45 @@ export default function App() {
 
       {/* ===================== MAIN CANVAS / WORKSPACE ===================== */}
       <main className="flex-1 overflow-x-hidden overflow-y-auto p-2 sm:p-6 flex flex-col items-center justify-start bg-[#080d19]">
-        {/* VIEW 1: MOBILE FLUID BOTANICAL VIEW */}
-        {viewMode === 'mobile' && (
+        {/* VIEW 1: THE FLUID BOTANICAL VIEW (100% RESPONSIVE) */}
+        {viewMode === 'botanical' && (
           <MobileBotanicalView
             species={currentSpecies}
             canEdit={isAdmin}
             onOpenEditor={() => setIsEditorOpen(true)}
             onPrev={handlePrev}
             onNext={handleNext}
-            onSwitchTo6x9={() => setViewMode('card6x9')}
             onUpdateSpecies={handleUpdateCurrentSpecies}
           />
         )}
 
-        {/* VIEW 2: EXACT 6x9 CANVA KDP CARD (AUTO-SCALED WITH ZERO CLIPPING) */}
-        {viewMode === 'card6x9' && (
-          <div className="w-full flex flex-col items-center">
-            {/* Quick Navigation pill */}
-            <div className="no-print flex items-center justify-between w-full max-w-xl mb-3 text-xs text-slate-400 px-2">
-              <button
-                onClick={handlePrev}
-                className="flex items-center gap-1 hover:text-amber-400 transition-colors font-medium"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                <span>Anterior</span>
-              </button>
-
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-slate-300 font-bold">
-                  #{currentSpecies.speciesCode} ({currentIndex + 1} de {speciesList.length})
-                </span>
-                {isAdmin && (
-                  <button
-                    onClick={() => setIsEditorOpen(true)}
-                    className="text-emerald-400 hover:underline flex items-center gap-1 font-semibold ml-2"
-                  >
-                    <Edit3 className="w-3 h-3" />
-                    Editar
-                  </button>
-                )}
-              </div>
-
-              <button
-                onClick={handleNext}
-                className="flex items-center gap-1 hover:text-amber-400 transition-colors font-medium"
-              >
-                <span>Siguiente</span>
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* THE EXACT 6x9 CANVA-STYLED PAGE WITH ZERO MOBILE CUT-OFF */}
-            <OrchidCard6x9
-              species={currentSpecies}
-              kdpGuides={kdpGuides}
-              onUpdateSpecies={handleUpdateCurrentSpecies}
-              onOpenEditor={() => setIsEditorOpen(true)}
-              scale={effectiveCardScale}
-              canEdit={isAdmin}
-            />
-
-            {/* KDP Guides Toggle Bar below card */}
-            <div className="no-print mt-4 flex flex-wrap items-center justify-center gap-2 text-xs">
-              <button
-                onClick={() => setKdpGuides(p => ({ ...p, showTrimLine: !p.showTrimLine }))}
-                className={`px-3 py-1 rounded-lg border text-xs font-medium transition-colors ${
-                  kdpGuides.showTrimLine
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                    : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
-                }`}
-              >
-                Corte KDP 6" × 9"
-              </button>
-              <button
-                onClick={() => setKdpGuides(p => ({ ...p, showBleedArea: !p.showBleedArea }))}
-                className={`px-3 py-1 rounded-lg border text-xs font-medium transition-colors ${
-                  kdpGuides.showBleedArea
-                    ? 'bg-red-500/20 text-red-300 border-red-500/40'
-                    : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
-                }`}
-              >
-                Sangrado (+0.125")
-              </button>
-              <button
-                onClick={() => setKdpGuides(p => ({ ...p, showSafeZone: !p.showSafeZone }))}
-                className={`px-3 py-1 rounded-lg border text-xs font-medium transition-colors ${
-                  kdpGuides.showSafeZone
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                    : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
-                }`}
-              >
-                Margen Seguro Interior
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* VIEW 3: FULL SCREEN DISTRIBUTION MAP */}
+        {/* VIEW 2: FULL REALISTIC MEXICO DISTRIBUTION MAP */}
         {viewMode === 'map' && (
-          <div className="w-full max-w-4xl mx-auto space-y-4 pb-20">
+          <div className="w-full max-w-4xl mx-auto space-y-4 pb-24">
             <div className="text-center space-y-1 mb-2">
-              <span className="font-mono text-amber-400 font-bold text-xs">
+              <span className="font-mono text-amber-400 font-bold text-xs bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
                 #{currentSpecies.speciesCode}
               </span>
               <h2 className="text-xl font-bold font-serif italic text-white">
                 {currentSpecies.scientificName}
               </h2>
               <p className="text-xs text-slate-400">
-                Distribución en las 32 entidades federativas de México
+                Cartografía oficial y distribución por estado en la República Mexicana
               </p>
             </div>
 
             <MexicoDistributionMap
               speciesStates={currentSpecies.mexicoStates || []}
               scientificName={currentSpecies.scientificName}
+              customMapUrl={currentSpecies.customMapUrl}
               canEdit={isAdmin}
               onUpdateStates={(newStates) => handleUpdateCurrentSpecies({ mexicoStates: newStates })}
+              onUpdateCustomMapUrl={(url) => handleUpdateCurrentSpecies({ customMapUrl: url })}
             />
           </div>
         )}
 
-        {/* VIEW 4: GRID CATALOGUE VIEW */}
+        {/* VIEW 3: GRID CATALOGUE VIEW */}
         {viewMode === 'grid' && (
           <div className="w-full max-w-6xl pb-24">
             <div className="mb-4 flex items-center justify-between">
@@ -665,7 +570,7 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {filteredSpecies.slice(0, 72).map(sp => {
+              {filteredSpecies.slice(0, 96).map(sp => {
                 const isSelected = sp.speciesCode === currentSpecies.speciesCode;
                 return (
                   <div
@@ -673,7 +578,7 @@ export default function App() {
                     onClick={() => {
                       const idx = speciesList.findIndex(s => s.speciesCode === sp.speciesCode);
                       if (idx !== -1) setCurrentIndex(idx);
-                      setViewMode(isMobile ? 'mobile' : 'card6x9');
+                      setViewMode('botanical');
                     }}
                     className={`p-2.5 rounded-xl border cursor-pointer transition-all ${
                       isSelected
@@ -700,35 +605,25 @@ export default function App() {
       </main>
 
       {/* ===================== BOTTOM MOBILE NAVIGATION DOCK ===================== */}
-      <nav className="no-print md:hidden fixed bottom-0 inset-x-0 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800/90 py-2 px-3 z-40 shadow-2xl flex items-center justify-around">
+      <nav className="no-print md:hidden fixed bottom-0 inset-x-0 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800/90 py-2.5 px-3 z-40 shadow-2xl flex items-center justify-around">
         <button
-          onClick={() => setViewMode('mobile')}
+          onClick={() => setViewMode('botanical')}
           className={`flex flex-col items-center gap-1 transition-all ${
-            viewMode === 'mobile' ? 'text-emerald-400 scale-105' : 'text-slate-400'
+            viewMode === 'botanical' ? 'text-emerald-400 scale-105 font-bold' : 'text-slate-400'
           }`}
         >
-          <Smartphone className="w-5 h-5" />
-          <span className="text-[10px] font-bold">Móvil</span>
-        </button>
-
-        <button
-          onClick={() => setViewMode('card6x9')}
-          className={`flex flex-col items-center gap-1 transition-all ${
-            viewMode === 'card6x9' ? 'text-amber-400 scale-105' : 'text-slate-400'
-          }`}
-        >
-          <Layers className="w-5 h-5" />
-          <span className="text-[10px] font-bold">Ficha 6×9</span>
+          <span className="text-lg">🌿</span>
+          <span className="text-[10px]">Ficha</span>
         </button>
 
         <button
           onClick={() => setViewMode('map')}
           className={`flex flex-col items-center gap-1 transition-all ${
-            viewMode === 'map' ? 'text-blue-400 scale-105' : 'text-slate-400'
+            viewMode === 'map' ? 'text-blue-400 scale-105 font-bold' : 'text-slate-400'
           }`}
         >
           <Globe className="w-5 h-5" />
-          <span className="text-[10px] font-bold">Mapa</span>
+          <span className="text-[10px]">Mapa</span>
         </button>
 
         <button
@@ -736,7 +631,7 @@ export default function App() {
           className="flex flex-col items-center gap-1 text-slate-400 active:text-white"
         >
           <BookOpen className="w-5 h-5 text-amber-400/90" />
-          <span className="text-[10px] font-medium">Catálogo</span>
+          <span className="text-[10px]">Catálogo</span>
         </button>
 
         {isAdmin ? (
@@ -776,6 +671,7 @@ export default function App() {
         onSelectSpecies={idx => {
           setCurrentIndex(idx);
           setIsCatalogModalOpen(false);
+          setViewMode('botanical');
         }}
         onAddNewSpecies={handleAddNewSpecies}
       />
@@ -785,14 +681,6 @@ export default function App() {
         speciesList={speciesList}
         isOpen={isGoogleDocsModalOpen}
         onClose={() => setIsGoogleDocsModalOpen(false)}
-      />
-
-      <KdpSettingsModal
-        kdpGuides={kdpGuides}
-        onUpdateGuides={upd => setKdpGuides(prev => ({ ...prev, ...upd }))}
-        isOpen={isKdpModalOpen}
-        onClose={() => setIsKdpModalOpen(false)}
-        onTriggerPrint={() => window.print()}
       />
 
       <BackupModal

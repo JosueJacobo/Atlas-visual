@@ -437,26 +437,32 @@ export const OrchidEditorDrawer: React.FC<OrchidEditorDrawerProps> = ({
                 </label>
                 <div className="grid grid-cols-5 gap-2">
                   {[
-                    { code: 'E', name: 'Probablemente extinta' },
                     { code: 'P', name: 'En peligro' },
                     { code: 'A', name: 'Amenazada' },
-                    { code: 'PR', name: 'Protección especial' },
-                    { code: 'NC', name: 'No catalogada' }
-                  ].map(status => (
-                    <button
-                      key={status.code}
-                      type="button"
-                      onClick={() => handleChange('conservationStatus', status.code as ConservationStatus)}
-                      className={`p-2 rounded border text-center transition-all ${
-                        formData.conservationStatus === status.code
-                          ? 'bg-emerald-600 text-white border-emerald-400 ring-2 ring-emerald-400 shadow-md font-bold'
-                          : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-white'
-                      }`}
-                    >
-                      <div className="text-sm font-black">{status.code}</div>
-                      <div className="text-[8px] truncate">{status.name}</div>
-                    </button>
-                  ))}
+                    { code: 'Pr', name: 'Protección especial' },
+                    { code: 'E', name: 'Probablemente extinta' },
+                    { code: 'NL', name: 'No listada' }
+                  ].map(status => {
+                    const isSelected = 
+                      formData.conservationStatus === status.code ||
+                      (status.code === 'Pr' && formData.conservationStatus === 'PR') ||
+                      (status.code === 'NL' && formData.conservationStatus === 'NC');
+                    return (
+                      <button
+                        key={status.code}
+                        type="button"
+                        onClick={() => handleChange('conservationStatus', status.code as ConservationStatus)}
+                        className={`p-2 rounded border text-center transition-all ${
+                          isSelected
+                            ? 'bg-emerald-600 text-white border-emerald-400 ring-2 ring-emerald-400 shadow-md font-bold'
+                            : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-white'
+                        }`}
+                      >
+                        <div className="text-sm font-black">{status.code}</div>
+                        <div className="text-[8px] truncate">{status.name}</div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

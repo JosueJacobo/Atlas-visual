@@ -1,21 +1,43 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Atlas Visual de Orquídeas de México (6x9 KDP & Google Docs)</title>
-    <meta name="description" content="Atlas botánico editorial para impresión Amazon KDP en 6x9 pulgadas y exportación a Google Docs con fichas taxonómicas completas de especies nativas y endémicas." />
-    <meta property="og:title" content="Atlas Visual de Orquídeas de México (6x9 KDP & Google Docs)" />
-    <meta property="og:description" content="Atlas botánico editorial para impresión Amazon KDP en 6x9 pulgadas y exportación a Google Docs con fichas taxonómicas completas de especies nativas y endémicas." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Atlas Botánico de Orquídeas de México</title>
+    <meta name="description" content="Guía botánica completa de las 1,182+ especies de orquídeas de México con fotos en alta resolución, mapas de distribución geográfica por estado y uso offline." />
+    <meta property="og:title" content="Atlas Botánico de Orquídeas de México" />
+    <meta property="og:description" content="Catálogo completo de orquídeas de México con fotografías, distribución geográfica por entidad federativa y taxonomía." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    
+    <!-- PWA & Mobile Meta Tags -->
+    <link rel="manifest" href="./manifest.json" />
+    <meta name="theme-color" content="#080d19" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Atlas Orquídeas" />
+    <link rel="apple-touch-icon" href="./icon.svg" />
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   </head>
-  <body>
+  <body class="bg-[#080d19] text-slate-100 overflow-x-hidden antialiased">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('./sw.js')
+            .then(function(reg) {
+              console.log('PWA ServiceWorker activo con éxito:', reg.scope);
+            })
+            .catch(function(err) {
+              console.warn('PWA ServiceWorker error:', err);
+            });
+        });
+      }
+    </script>
   </body>
 </html>
-
