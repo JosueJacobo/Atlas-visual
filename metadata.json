@@ -1,0 +1,6 @@
+{
+  "name": "Atlas Visual de Orquídeas de México (6x9 KDP & Google Docs)",
+  "description": "Atlas botánico editorial para impresión Amazon KDP en 6x9 pulgadas y exportación a Google Docs con fichas taxonómicas completas de especies nativas y endémicas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

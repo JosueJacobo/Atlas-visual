@@ -1,0 +1,1188 @@
+import fs from 'fs';
+
+// Raw list extracted directly from the user prompt:
+const rawText = `1. Acianthera angustifolia (Lindl.) Luer 🫪 🐊
+2. Acianthera angustisepala🫪🐊
+3. Acianthera breedlovei Soto Arenas 🫪🐊
+4. Acianthera circumplexa (Lindl.) Pridgeon & M.W.Chase 🫪🐊
+5. Acianthera chrysantha (Lindl.) Pridgeon & M.W.Chase👻🐊
+Acianthera erinacea🐒
+6. Acianthera eximia (L.O.Williams) Soónón-Chico🐊
+7. Acianthera herrerae (Luer) Solano & Soto Arenas👻🐊
+Acianthera hartwegiifolia
+8. Acianthera hondurensis🫪
+9. Acianthera johnsonii (Ames) Pridgeon & M.W.Chase
+Acianthera majakoluckae
+10. Acianthera obscura 👻
+11. Acianthera pollardiana🫪
+Acianthera pubescens
+12. Acianthera rzedowskiarum 🫪
+13. Acianthera testifolia 🫪
+14. Acianthera tikalensis (Correll & C.Schweinf.) Pridgeon & M.W.Chase) 🫪
+Acianthera unguicallosa)
+15. Acianthera violacea (A.Rich. & Galeotti) Pridgeon & M.W.Chase 🫪
+16. Acineta barkeri (Bateman) Lindl. 🫪
+Acineta chrysantha
+17. Acineta hagsateri 🫂
+Acineta salazarii
+18. Amoana kienastii 🫪
+19. Amoana latipetala
+20. Alamania punicea Lex. (Endémica) 🫪
+21. Anathallis minutalis (Lindl.) Pridgeon & M.W.Chase 
+22. Anathallis sertularioides (Sw.) Spreng. 🫪
+23. Anathallis lewisiae Ames 🫪
+24. Anathallis yucatanensis (Ames & C.Schweinf.) Solano👻
+Andreettaea segregatifolia
+25. Arpophyllum giganteum Hartw. ex Lindl. 🫪
+26. Arpophyllum laxiflorum Pfitzer 🫪
+27. Arpophyllum medium Rchb.f. 🫪
+28. Arpophyllum spicatum Lex. 🫪
+29. Artorima erubescens (Lindl.) Dressler & G.E.Pollard (Endémica) 🫪
+30. Aspasia epidendroides Lindl. 🫪
+31. Aspidogyne querceticola 🫂
+Aulosepalum nelsonii
+32. Aulosepalum pyramidale (Lindl.) M.A.Dix & M.W.Dix 🫪
+33. Aulosepalum hemichrea (Lindl.) Garay
+34. Aulosepalum tenuiflorum 🫂
+35. Aulosepalum riodelayense (Burns-Bal.) Salazar
+36. Barbosella prorepens (Rchb.f.) Schltr. 🫪
+37. Barkeria barkeriola Rchb.f. (Endémica)🫪
+38. Barkeria obovata (Lindl.) Thien 🫪
+39. Barkeria dorotheae Halb. (Endémica) 🫪
+40. Barkeria fritz-halbingeriana Soto Arenas (Endémica) 🫪
+41. Barkeria lindleyana Bateman ex Lindl. 🫪
+42. Barkeria melanocaulon A.Rich. & Galeotti (Endémica) 🫪
+43. Barkeria naevosa (Lindl.) Schltr. (Endémica) 🫪
+44. Barkeria palmeri (Marisn.) Schltr. (Endémica) 🫪
+45. Barkeria scandens (Lex.) Dressler & Halb. (Endémica) 🫪
+46. Barkeria shoemakeri Halb. (Endémica) 🫪
+47. Barkeria skinneri (Bateman ex Lindl.) A.Rich. & Galeotti 🫪
+48. Barkeria spectabilis Bateman ex Lindl. 🫪
+49. Barkeria strophinx Halb. (Endémica) 🫪
+50. Barkeria uniflora (Lex.) Dressler & Halb. (Endémica) 🫪
+51. Barkeria whartoniana (C.Schweinf.) Soto Arenas (Endémica) 🫪
+52. Barkeria wixarika
+53. Basiphyllaea corallicola (Small) Ames 🫪
+54. Beloglottis costaricensis (Rchb.f.) Schltr.
+Beloglottis hameri
+Beloglottis mexicana
+55. Bletia adenocarpa Rchb.f. (Endémica)
+56. Bletia amabilis C.Schweinf. (Endémica)
+Bletia arizonica
+57. Bletia campanulata Lex.
+58. Bletia coccinea Lex. (Endémica)
+59. Bletia concolor Dressler (Endémica)
+60. Bletia ensifolia L.O.Williams (Endémica)
+61. Bletia gracilis L.O.Williams (Endémica)
+62. Bletia greenmaniana L.O.Williams (Endémica)
+63. Bletia greenwoodiana Dressler
+Bletia Jacunda
+64. Bletia lilacina Rich. & Galeotti
+65. Bletia macristhmochila Greenm. (Endémica)
+66. Bletia mexicana ,🫪
+67. Bletia mixtecana 
+68. Bletia neglecta Sosa (Endémica)
+69. Bletia nelsonii Greenm. (Endémica)
+70. Bletia Parkinsonii Hook. (Endémica)
+Bletia parva
+71. Bletia punctata
+72. Bletia purpurata Rich. & Galeotti
+73. Bletia purpurea (Lam.) DC.
+74. Bletia reflexa Lindl.
+75. Bletia roezlii Rchb.f.
+76. Bletia santosii H.Prags. (Endémica)
+77. Bletia tenuifolia Ames & C.Schweinf.
+78. Bletia urbana Dressler
+79. Bletia warfordiana Sosa (Endémica)
+80. Brachystele guayanensis
+81. Brassavola acaulis
+82. Brassavola cucullata (L.) Rchb.f.
+83. Brassavola nodosa (L.) Lindl.
+84. Brassavola grandiflora Lindl.
+85. Brassavola venosa Lindl.
+Brassia arcuigera
+86. Brassia caudata (L.) Lindl.
+87. Brassia maculata R.Br.
+Brassia signata
+88. Brassia verrucosa Lindl.
+89. Bulbophyllum aristatum (Rchb.f.) Hemsl.
+90. Bulbophyllum cirrhosum
+Bulbophyllum jamaicense
+91. Bulbophyllum nagelii L.O.Williams (Endémica)
+Bulbophyllum oerstedii
+92. Bulbophyllum pachyrachis (A.Rich.) Griseb.
+93. Calanthe calanthoides (A.Rich. & Galeotti) Hamer & Garay
+94. Campylocentrum fasciola (Lindl.) Cogn. 🫪
+95. Campylocentrum micranthum. (Lindl.) Rolfe
+96. Campylocentrum pachyrrhizum (Rchb.f.) Rolfe
+97. Campylocentrum poeppigii (Rchb.f.) Rolfe👻
+98. Campylocentrum schiedei (Rchb.f.) Benth. ex Hemsl.
+99. Campylocentrum tyrridion Garay & Dunst. ex Foldats 🫪
+100. Catasetum integerrimum Hook.
+101. Catasetum laminatum Lindl. (Endémica)
+102. Catasetum maculatum 🫪
+103. Catasetum pendulum Dods. (Endémica)
+Caularthron bilamellatum
+104. Chondrorhyncha lendliana Rchb.f. 🫪
+105. Chysis addita
+106. Chysis aurea J.M.H.Shaw 🫪
+107. Chysis bractescens Lindl.
+108. Chysis laevis Lindl. 🫪
+109. Chysis limminghei Linden & Rchb.f.
+110. Chysis tricostata Schltr.
+111. Clowesia dodsoniana Aguirre-Olav. (Endémica)
+112. Clowesia glaucoglossa Rchb.f. (Endémica)
+113. Clowesia rosea Lindl. (Endémica)
+114. Clowesia russelliana (Hook.) Dodson
+115. Clowesia thylaciochila (Lem.) Dodson (Endémica)
+Clowesia warczewitzii
+116. Coenoemersa limosa 🫪
+117. Cochleanthes flabelliformis (Sw.) Schult. & 🫪
+118. Coelia bella (Reichenbach f.) Reichenbach f. 🫪
+119. Coelia densiflora Rolfe.🫪
+120. Coelia guatemalensis Rchb.f. 🫪
+121. Coelia macrostachya Lindl.
+122. Coelia triptera (G.Forst.) G.Don ex Steud.
+123. Comparettia falcata Poepp. & Endl.
+124. Comparettia tuerckheimii (Schltr.) M.W.Chase & NHWilliams
+125. Corallorhiza bulbosa A.Rich. & Galeotti
+126. Corallorhiza macrantha
+127. Corallorhiza maculata (Raf.) Raf.
+128. Corallorhiza odontorhiza (Willd.) Nutt.
+129. Corallorhiza striata Lindl. 🫪
+130. Corallorhiza wisteriana Conrad
+Coryanthes picturata
+Corymborkis forcipigera
+Cranichis ciliilabia
+131. Cranichis ciliata (Kunth) Cass.
+132. Cranichis chiapasensis
+Cranichis cochleata
+133. Cranichis diphylla Sw. 🫪
+134. Cranichis lankesteri Ames
+135. Cranichis muscosa
+Cranichis notata
+136. Cranichis sylvatica A.Rich. & Galeotti
+137. Cranichis wageneri Reichb.f.
+138. Cryptarrhena lunata R.Br.
+139. Cryptarrhena guatemalensis Schltr 🫪
+140. Cuitlauzina candida (Lindl.) Dressler & N.H.Williams
+141. Cuitlauzina convallarioides (Schltr.) Dressler &  N.H.Williams
+142. Cuitlauzina dubia 🫪
+143. Cuitlauzina egertonii
+144. Cuitlauzina pendula Lex.
+145. Cuitlauzina pulchella (Bateman ex Lindl.) Dressler & N.H.Williams 🫪
+146. Cyclopogon comosus (Rchb.f.) Burns-Bal. & E.W.Greenw.
+147. Cyclopogon cranichoides
+148. Cyclopogon elatus (Sw.) Schltr.
+Cyclopogon guayanensis
+149. Cyclopogon luteoalbus Rich. & Galeotti
+150. Cyclopogon miradorensis Schltr.
+151. Cyclopogon papilio Szlach. (Endémica)
+152. Cyclopogon saccatus
+153. Cycnoches ventricosum Bateman 🫪
+154. Cycnoches egertonianum Bateman 🫪
+155. Cypripedium irapeanum Lex. (Famosa Orquídea Pelícano)
+156. Cypripedium dickinsonianum Hágsater
+157. Cypripedium molle Lindl.
+158. Cypripedium gomezianum 👻
+159. Cyrtopodium macrobulbon (Lex.) G.A.Romero & Carnevali
+160. Cyrtopodium paniculatum
+161. Cyrtopodium punctatum (L.) Lindl.
+162. Cyrtochiloides ochmatochila 🫪
+163. Deiregyne callifera
+164. Deiregyne chartacea (L.O.Williams) Garay
+165. Deiregyne densiflora 👻
+166. Deiregyne diaphana (Szlac. & R.Gonzalez) Garay (Endémica)
+167. Deiregyne eriophora (Robinson & Greenm.) Garay (Endémica)
+168. Deiregyne falcata (L.O.Williams) Garay (Endémica)
+169. Deiregyne rhombilabia
+170. Deiregyne tenorioi
+171. Deiregyne velata (Robinson & Greenm.) Garay (Endémica)
+172. Dendrophylax porrectus 
+173. Dendrophylax megarhizus
+174. Dichaea glauca (Cav.) Lindl.
+175. Dichaea graminoides (Sw.) Lindl.
+176. Dichaea hystricina Rchb.f.
+177. Dichaea intermedia Ameghino ex Schltr
+Dichaea morrisii
+178. Dichaea muricatoides Hamer & Garay
+179. Dichaea neglecta Schltr.
+180. Dichaea panamensis Lindl.
+181. Dichaea squarrosa Lindl.
+182. Dichaea trichocarpa (Sw.) Blume
+183. Dichaea tuerckheimii Schltr
+184. Dichromanthus aurantiacus🫪
+185. Dichromanthus cinnabarinus (Lex.) Garay
+186. Dichromanthus michuacanus (Lex.) Salazar & Soto Arenas
+187. Dichromanthus yucundaa Salazar & García-Mend.
+188. Dinema polybulbon (Sw.) Lindl.🫪
+189. Dimerandra emarginata (G.Mey.) Hoehne
+190. Domingoa gemma 🫪
+191. Domingoa purpurea (Lindl.) Van den Berg & Soto Arenas
+Dracula pusilla
+192. Dryadella guatemalensis (Schltr.) Luer 
+Dryadella linearifolia
+Dryadella simula
+193. Elleanthus aurantiacus (Rchb.f.) Rchb.f.
+194. Elleanthus capitatus (R.Br.) Rchb.f.
+Elleanthus caricoides
+195. Elleanthus cynarocephalus (Rchb.f.) Rchb.f.
+196. Elleanthus graminifolius🫪
+197. Elleanthus hymenophorus 🫪
+198. Eltroplectris calcarata (Sw.) Garay & Sweet 🫪
+199. Eltroplectris roseoalba (Rchb.f.) Hamer & Garay
+200. Encyclia acapulcensis
+201. Encyclia adenocarpa (Llave & Lex.) Schltr. 🫪
+202. Encyclia adenocaula 🫪
+203. Encyclia aenicta 🫪
+204. Encyclia alata (Bateman) Schltr. 🫪
+205. Encyclia ambigua (Lindl.) Schltr.
+206. Encyclia aspera Schltr.
+207. Encyclia asperula 🫪
+208. Encyclia atrorubens (Rolfe) Schltr. (Endémica)
+Encyclia belizensis
+209. Encyclia bractescens (Lindl.) Hoehne
+210. Encyclia calderoniae Soto Arenas (Endémica
+211. Encyclia candollei (Lindl.) Schltr. 🫪
+212. Encyclia ceratistes 🫪
+213. Encyclia chloroleuca 🫪
+214. Encyclia cordigera (Kunth) Dressler 🫪
+215. Encyclia contrerasii R.González (Endémica de Jalisco y Nayarit).
+216. Encyclia chiapasensis Withner & D.G.Hunt (Endémica de Chiapas).🫪
+217. Encyclia diota (Lindl.) Schltr.
+218. Encyclia dressleri 🫪
+219. Encyclia flabellata
+Encyclia gravida
+220. Encyclia guatemalensis (Kltozsch) Dressler & Pollard 🫪
+221. Encyclia hanburyi (Lindl.) Schltr. (Endémica)
+222. Encyclia huertae 🫪
+Encyclia incumbens
+Encyclia kennedyi
+223. Encyclia Lorata Dressler & G.E.Pollard (Endémica)
+224. Encyclia meliosma (Rchb.f.) Schltr. (Endémica)
+225. Encyclia microbulbon (Hook.) Schltr. (Endémica)
+226. Encyclia nematocaulon (A.Rich.) Acuña
+227. Encyclia nizandensis 🫪
+228. Encyclia oestlundii (Ames) Dressler (Endémica)
+229. Encyclia oncidioides (Casp.) Schltr. 🫪
+230. Encyclia parviflora (Regel) Dressler
+231. Encyclia papillosa (Bateman ex Lindl.) Aguirre-Olav. 🫪
+232. Encyclia pollardiana (Withner) Dressler & Pollard 🫪
+233. Encyclia rzedowskiana Soto Arenas (Endémica)
+234. Encyclia selligera 🫪
+235. Encyclia spatella (Rchb.f.) Schltr. (Endémica)
+236. Encyclia suaveolens Dressler (Endémica)
+237. Encyclia trachychila 🫪
+238. Encyclia Trachycarpa (Lindl.) Schltr. (Endémica) 🫪
+239. Encyclia tuerckheimii Schltr. (Chiapas). 🫪
+Epidendrum aberrans
+240. Epidendrum acunae Dressler 🫪
+241. Epidendrum alabastrialatum Hágsater (Endémica)
+242. Epidendrum albopropinquum 🫪
+Epidendrum alvarezdeltoroi
+243. Epidendrum amphistomum A.Rich. & Galeotti 🫪
+Epidendrum anceps
+244. Epidendrum anisatum Lex. (Endémica)
+245. Epidendrum angustilobum 🫂
+246. Epidendrum Arbuscula Lindl.
+Epidendrum atroscriptum
+247. Epidendrum barbeyanum Kraenzl.
+248. Epidendrum bracteolatum Presl
+249. Epidendrum camposii Hágsater 🫪
+250. Epidendrum calanthum 🤨
+251. Epidendrum cardiophorum 🫪
+Epidendrum cardiochilum
+Epidendrum caroli
+252. Epidendrum carpophorum Barb.Rodr.
+253. Epidendrum centropetalum Rchb.f. 🫪
+254. Epidendrum chlorops Rchb.f.
+255. Epidendrum chlorocorymbos Schltr. 🫪
+256. Epidendrum chloe Rchb.f. 🫪
+257. Epidendrum ciliare L.
+Epidendrum citrosmum
+258. Epidendrum Clowesii Bateman ex Lindl.
+259. Epidendrum cnemidophorum Lindl. 🫪
+260. Epidendrum conopseum R.Br.
+261. Epidendrum coriifolium 🫪
+Epidendrum coronatum
+262. Epidendrum Costatum A.Rich. & Galeotti (Endémica)
+263. Epidendrum criniferum Rchb.f. 🫪
+264. Epidendrum cristatum Ruiz & Pav
+265. Epidendrum cusii 🫪
+266. Epidendrum cystosum Ames
+267. Epidendrum difforme Jacq. 🫪
+268. Epidendrum diffusum Sw.
+269. Epidendrum dressleri 🫂
+Epidendrum erectifolium
+270. Epidendrum eustirum Ames & C.Schweinf 🫪
+Epidendrum examinis
+271. Epidendrum eximium L.O.Williams (Endémica)
+272. Epidendrum falcatum Ruiz & Pav. 🫪
+273. Epidendrum firmum Rchb.f. 🫂
+274. Epidendrum flexuosum G.Mey. 
+Epidendrum fruticosum
+275. Epidendrum galeottianum A.Rich. & Galeotti (Endémica)
+276. Epidendrum gasteriferum Scheeren 🫪
+277. Epidendrum gomezii Schltr. 🫂
+278. Epidendrum greenwoodii Hágsater (Endémica)
+Epidendrum guerrerense
+279. Epidendrum hagsateri Christenson 🫪
+280. Epidendrum hueycantenangense 👻🫂
+281. Epidendrum ibaguense Kunth 🫪
+282. Epidendrum incomptum Rchb.f.
+283. Epidendrum imatophyllum Lindl.
+284. Epidendrum isomerum Schltr.
+Epidendrum isthmi
+285. Epidendrum juergensenii Rchb.f. (Endémica)
+286. Epidendrum lacertinum Lindl.
+287. Epidendrum laucheanum 🫪
+288. Epidendrum ledifolium A.Rich. & Galeotti (Endémica)
+289. Epidendrum lignosum Lex. (Endémica)
+290. Epidendrum longicaule (L.O.Williams) L.O.Williams 🫪
+291. Epidendrum longipetalum Rich. & Galeotti (Endémica)
+292. Epidendrum lowilliamsii Hágsater
+Epidendrum macdougallii
+293. Epidendrum macroclinium Hágsater
+294. Epidendrum magnificum Schltr. (Endémica)
+295. Epidendrum magnoliae 🫪
+296. Epidendrum marmoratum Rchb.f. (Endémica)
+297. Epidendrum martinezii 🫪
+298. Epidendrum melistagum 🫪
+299. Epidendrum microcharis Rchb.f.
+300. Epidendrum miserum Rchb.f.
+301. Epidendrum mixtum 🫪 
+Epidendrum myodes
+302. Epidendrum myrianthum Lindl. 🫪
+303. Epidendrum nitens Rchb.f.
+Epidendrum neogaliciensis
+304. Epidendrum nocturnum Jacq.
+Epidendrum nubium
+305. Epidendrum oaxacanum Hágsater (Endémica)
+306. Epidendrum octomerioides Schltr. 🫪
+307. Epidendrum paniculatum Ruiz & Pav.
+Epidendrum pansamalae
+308. Epidendrum parkinsonianum Hook. 🫪
+309. Epidendrum paranthicum Rchb.f.
+Epidendrum pastranae
+Epidendrum peperomia
+310. Epidendrum petacaense
+311. Epidendrum physodes Rchb.f.
+312. Epidendrum piliferum
+313. Epidendrum polyanthum Lindl.
+314. Epidendrum porpax
+315. Epidendrum propinquum A.Rich. & Galeotti 🫪
+316. Epidendrum pseudoramosum Schltr.
+317. Epidendrum radioferens Ames (Endémica)
+318. Epidendrum radicans Pav. ex Lindl. (Orquídea de San José) 🫪
+319. Epidendrum raniferum 🫪
+320. Epidendrum ramosum Jacq.
+321. Epidendrum Repens Cogn.
+322. Epidendrum rigidum Jacq.
+Epidendrum rosilloi
+Epidendrum santaclarense
+323. Epidendrum schlechterianum. 🫪
+324. Epidendrum scriptum Rich. & Galeotti
+325. Epidendrum sculptum 🫪
+326. Epidendrum secundum Jacq. 🫪
+327. Epidendrum smaragdinum Lindl.
+328. Epidendrum sobralioides Ames & Correll
+329. Epidendrum stallforthianum Kraenzl. (Endémica)
+330. Epidendrum stamfordianum Bateman
+331. Epidendrum stangeanum Rchb.f. 🫪
+332. Epidendrum strobiliferum Rchb.f 🫪
+333. Epidendrum succulentum Hágsater (Endémica)
+334. Epidendrum tetraceros Rchb.f.
+335. Epidendrum tortipetalum Scheeren 🫂
+336. Epidendrum trianthum Hágsater (Endémica)
+337. Epidendrum trialatum Hágsater 🫪
+338. Epidendrum tridactylum Lindl. 🫪
+Epidendrum tziscaoense
+Epidendrum vandifolium
+339. Epidendrum veroscriptum Hágsater (Endémica)
+340. Epidendrum verrucosum Sw. 🫪
+Epipactis gigantea
+Eriopsis biloba
+341. Erycina crista-galli (Reichenbach f.) N.H.Williams & M.W.Chase 🫪
+342. Erycina echinata 🫪
+343. Erycina glossomystax 🫪
+344. Erycina hyalinobulbon (Lex.) Schltr. (Endémica)
+345. Erycina pumilio (Reichenbach f.) N.H.Williams & M.W.Chase 🫪
+346. Erycina pusilla (L.) N.H.Williams & M.W.Chase
+347. Eulophia alta (Linnaeus) Fawcett & Rendle 🫪
+Eulophia  Maculata
+348. Eurystyles ananassocomos (Rchb.f.) Schltr. 🫪
+349. Eurystyles standleyi 🫂
+350. Funkiella hyemalis (A.Rich. & Galeotti) Schltr. (Endémica) 🫪
+351. Funkiella parasitica 🫪
+352. Galeandra batemanii Rolfe
+353. Galeandra baueri 🫪
+354. Galeandra bicarinata G.A.Romero & P.M.Br.
+355. Galeandra greenwoodiana Halo (Endémica
+356. Galeoglossum tubulosum (Lindl.) Salazar & Sulman 🫪
+Galeottiella sarcoglossa
+Galeottia grandiflora
+357. Gongora cassidea Rchb.f.
+358. Gongora galeata (Lindl.) Rchb.f. (Endémica) 🫪
+359. Gongora galeottiana A.Rich. 🫪
+360. Gongora leucochila Lem.
+Gongora saccata
+361. Gongora seideliana 🫂
+362. Gongora tridentata Corpas
+363. Gongora truncata Lindl.
+364.Gongora unicolor 🫪
+Goodyera brachyceras (A.Rich. & Galeotti) Garay (Endémica)
+365. Goodyera dolabripetala Ames
+366. Goodyera oblongifolia 🫪 
+367. Goodyera procera 🫪
+368. Goodyera striata Rchb.f..
+369. Govenia alba A.Rich. & Galeotti (Endémica)
+370. Govenia bella Greenwood 🫂 
+371. Govenia capitata Lindl. (Endémica)
+372. Govenia dressleriana Greenwood 🫪
+373. Govenia greenwoodii Dressler & Greenwood (Endémica)
+374. Govenia greenwoodiana
+375. Govenia lagenophora 🫪
+376. Govenia liliacea (Lex.) Lindl.
+377. Govenia matudae E.W.Greenw. & Soto Arenas (Endémica)
+378. Govenia polychroma 🫪
+379. Govenia praecox 🫂
+380. Govenia purpusii Schltr. 🫪
+381. Govenia superba (Lex.) Lindl. ex Loddiges
+382. Govenia quadriplicata 🫪
+383. Govenia tequilana Dressler & Hagsater (Endémica)
+384. Govenia utriculata (Sw.) Lindl. 🫪
+385. Guarianthe aurantiaca (Bateman ex Lindl.) Dressler & W.E.Higgins
+386. Guarianthe bowringiana (Veitch) Dressler & W.E.Higgins
+Guarianthe hennisiana
+387. Guarianthe skinneri (Bateman) Dressler & W.E.Higgins (La flor de Candelaria)
+388. Guarianthe × guatemalensis (Moore) W.E.Higgins
+389. Habenaria agapitae R.González & Reynoso (Endémica)
+390. Habenaria alata Hook.
+391. Habenaria bractescens Lindl.
+Habenaria calicis
+392. Habenaria clypeata Lindl.
+393. Habenaria crassicornis Lindl. 🫪
+Habenaria cuevasiana
+394. Habenaria distans Griseb.
+395. Habenaria entomantha (Lex.) Lindl.
+396. Habenaria eustachya Rchb.f.
+397. Habenaria filifera S.Watson (Endémica)
+398. Habenaria flexuosa Rchb.f.
+399. Habenaria floribunda Lindl.
+400. Habenaria guadalajarana S.Watson 🫪
+401. Habenaria leon ibarrae R.González (Endémica)
+402. Habenaria ixtlanensis E.Wyllys 👻
+403. Habenaria jaliscana S.Watson (Endémica)
+Habenaria jardeliana
+404. Habenaria leprieurii
+405. Habenaria macroceratitis Willd.
+406. Habenaria macvaughiana R.González (Endémica)
+407. Habenaria monorrhiza (Sw.) Rchb.f.
+408. Habenaria novemfida Lindl.
+409. Habenaria odontopetala Rchb.f. 🫪
+410. Habenaria pringlei B.L.Rob. 🫪
+411. Habenaria repens Nutt. 🫪
+412. Habenaria rzedowskiana R.González (Endémica)
+413. Habenaria quinqueseta (Michx.) Eaton
+414. Habenaria strictissima Rchb.f. (Endémica)
+415. Habenaria subauriculata Robinson & Greenm. (Endémica)
+Habenaria tetranema
+416. Habenaria trifida Kunth
+Habenaria virens
+417. Hagsatera brachycolumna (L.O.Williams) Salazar 🫪
+418. Hagsatera rosilloi 🫪
+419. Hartwegia purpurea Lindl. 🫪
+420. Hapalorchis lineatus (Lindl.) Schltr.
+421. Helleriella nicaraguensis Garay 🫪
+422. Helleriella guerrerensis 🫂
+423. Hexalectris brevicaulis L.O.Williams
+424. Hexalectris grandiflora (L.O.Williams) Toka (Endémica)
+425. Hexalectris nitida L.O.Williams
+426. Hexalectris revoluta Correll
+427. Hexalectris spicata (Walter) Barnhart
+428. Hexalectris warnockii Ames & Correll
+429. Hintonella mexicana 🫪 
+Homalopetalum kienastii
+430. Homalopetalum pachyphyllum (L.O.Williams) Dressler (Endémica
+431. Homalopetalum pumilio (Rchb.f.) Schltr. 🫪
+432. Houlletia tigrina
+433. Ionopsis utricularioides (Sw.) Lindl.
+434. Ionopsis satyrioides (Sw.) Rchb.f.
+435. Isochilus alatus Schltr.
+436. Isochilus aurantiacus Hamer & Garay
+437. Isochilus bracteatus 🫂
+438. Isochilus carnosiflorus Lindl.
+439. Isochilus chiriquensis Schltr.
+440. Isochilus langlassei Schltr. 👻
+441. Isochilus latibracteatus 🫪
+442. Isochilus linearis (Jacq.) R.Br.
+443. Isochilus major Cham. & Schltr.
+444. Isochilus oaxacanus Salazar & Soto Arenas (Endémica)
+445. Isochilus unilateralis Robinson (Endémica) 🫪
+Jacquiniella cernua
+446. Jacquiniella cobanensis 🫪
+447. Jacquiniella equitantifolia (Ames) Dressler
+448. Jacquiniella globosa (Jacq.) Schltr.
+449. Jacquiniella leucomelana (Rchb.f.) Schltr. (Endémica)
+450. Jacquiniella teretifolia (Sw.) Britt. & Wils.
+451. Kefersteinia lactea Rchb.f. 🫪
+452. Kefersteinia tinschertiana 🫪
+453. Kegeliella atropilosa L.O.Williams & A.H.Heller 🫪
+454. Kionophyton sawyeri (Standl.) Garay (Endémica)
+455. Kionophyton seminuda (Schltr.) Garay (Endémica)
+Lacaena bicolor
+Lacaena spectabilis
+456. Laelia albida Bateman ex Lindl. (Endémica)
+457. Laelia anceps Lindl.
+458. Laelia aurea 🫪
+459. Laelia autumnalis (Lex.) Lindl. (Endémica)
+460. Laelia crawshayana Rchb.f. (Endémica)
+461. Laelia dawsonii
+462. Laelia eyermaniana Rchb.f. (Endémica)
+463. Laelia furfuracea Lindl. (Endémica)
+464. Laelia gouldiana Rchb.f. (Endémica - Extinta en la naturaleza)
+465. Laelia halbingeriana 🫪
+Laelia lueddemannii
+466. Laelia marginata 🫪
+467. Laelia rubescens Lindl.
+468. Laelia speciosa (Kunth) Schltr. (Endémica)
+469. Laelia superbiens Lindl.
+Lankesteriana abbreviata
+Lankesteriana barbulata
+470. Leochilus carinatus (Knowles & Westcott) Lindl. 🫪
+471. Leochilus crocodiliceps (Rchb.f.) Kraenzl.
+472. Leochilus johnstonii Ames & Correll
+473. Leochilus labiatus (Sw.) Kuntze
+Leochilus leiboldii
+474. Leochilus oncidioides Knowles & Westc. (Endémica)
+475. Leochilus scriptus (Scheidw.) Rchb.f.
+476. Lepanthes acuminata Schltr 🫪
+477. Lepanthes appendiculata 🫪
+Lepanthes aprica
+Lepanthes almolongae
+478. Lepanthes attenuata Salazar & Soto Arenas 🫪
+479. Lepanthes avis Rchb.f. (Endémica)
+480. Lepanthes breedlovei Luer 👻
+Lepanthes calopetala
+Lepanthes catlingii
+Lepanthes denticulata
+481. Lepanthes disticha (A.Rich. & Galeotti) Rchb.f.
+482. Lepanthes fratercula 🫂
+483. Lepanthes fimbriata Ames 🫪
+Lepanthes erythroxantha
+Lepanthes excedens
+484. Lepanthes gabriellae R.Solano 🫂👻
+485. Lepanthes greenwoodii Salazar & Soto Arenas (Endémica)
+486. Lepanthes guatemalensis 🫪
+Lepanthes guerrerensis
+487. Lepanthes Hagsateri Salazar & Soto Arenas (Endémica)
+488. Lepanthes inaequiloba 🫂
+489. Lepanthes johnsonii Ames
+Lepanthes machorroi
+490. Lepanthes mariae Salazar & Soto Arenas 🫂
+491. Lepanthes matudana 🫪
+492. lepanthes motozintlensis 🫂
+493. Lepanthes Moorei C.Schweinf. (Endémica) 🫪
+494. Lepanthes nagelii Salazar & Soto Arenas (Endémica)
+495. Lepanthes oreocharis Schltr. 👻
+Lepanthes oreophila
+Lepanthes pantomima
+496. Lepanthes papillipetala Dressler (Endémica) 🫪
+Lepanthes parvula
+Lepanthes pristidis
+497. Lepanthes Quetzalensis 🫪
+498. Lepanthes rekoi R.E.Schult. (Endémica)
+499. Lepanthes samacensis Ames 🫪
+500. Lepanthes schiedei Rchb.f.
+501. Lepanthes scopula 🫪
+502. Lepanthes stenophylla Luer 🫪
+503. Lepanthes suarezii Salazar & Soto Arenas 👻
+504. Lepanthes tenuiloba R.E.Schult. & Dillon (Endémica)
+505. Lepanthes tecpanica Luer & Béhar 🫪
+Lepanthes thurstoniorum
+506. Lepanthes tortuosa Luer & Hagsater (Endémica)
+507. Lepanthes turialvae 🫪
+508. Lepanthes williamsii Salazar & Soto Arenas (Endémica)
+509. Lepanthes yunckeri 🫪
+510. Lepanthopsis floripecten (Rchb.f.) Ames
+511. Lepanthopsis melanantha 🫪
+512. Leucohyle subulata (Sw.) Schltr.
+Leochilus oncidioides
+513. Liparis arnoglossophylla (Reichb.f.) Hemsl.
+514. Liparis cordiformis C.Schweinf.
+515. Liparis Draculoides E.W.Greenw. (Endémica)
+516. Liparis elata Lindl.
+517. Liparis vexillifera (Lex.) Cogn.
+518. Lockhartia galeottiana A.Rich. & Galeotti (Endémica)
+519. Lockhartia hercodonta 🫪
+520. Lockhartia oerstedii Rchb.f.
+521. Lophiaris andrewsiae 🫪
+522. Lophiaris bicallosa (Rchb.f.) Braem
+523. Lophiaris cosymbephorum 🫪
+524. Lophiaris straminea (Bateman ex Lindl.) Braem 🫪
+525. Lophiaris lindenii (Brongn.) Braem 🫪
+526. Lophiaris lurida 🫪
+527. Lophiaris oerstedii 🫪
+528. Lophiaris teaboana 🫪
+529. Lycaste aromatica (Graham ex Hook.) Lindl.🫪 (Orquídea canela)
+530. Lycaste cochleata Lindl. ex Paxt.
+531. Lycaste crinita Lindl. (Endémica)
+532. Lycaste cruenta 🫪
+Lycaste bradeorum
+533. Lycaste deppei (Loddiges ex Hook.) Lindl.
+534. Lycaste dowiana Endres & Rchb.f.
+535. Lycaste lasioglossa Rchb.f.
+536. Lycaste michelii Oakeley (Endémica)
+537. Lycaste skinneri (Bateman ex Lindl.) Lindl. (Monja blanca)
+538. Lyroglossa pubicaulis (L.O.Williams) Garay
+Macradenia brassavolae
+539. Macroclinium bicolor (Lindl.) Dodson
+540. Macroclinium lexarzanum (Hagsater & R.Gonzalez) Dodson (Endémica)
+541. Macroclinium pachybulbon 🫪
+542. Malaxis abieticola Salazar & Soto Arenas (Endémica)
+543. Malaxis acuminate D.Don
+544. Malaxis aurea 🫂
+Malaxis alvaroi
+545. Malaxis brachyrrhynchos (Rchb.f.) Ames
+546. Malaxis brachystachys 🫪
+547. Malaxis carnosa (Kunth) C.Schweinf.
+548. Malaxis corymbosa (S.Watson) Kuntze
+Malaxis crispata
+549. Malaxis elliptica A.Rich. & Galeotti (Endémica)
+550. Malaxis excavata (Lindl.) Kuntze
+551. Malaxis fastigiata (Rchb.f.) Kuntze
+552. Malaxis hagsateri Salazar (Endémica)
+553. Malaxis histionantha (Link, Klotzsch & Otto) Garay & Dunsterv.
+554. Malaxis javesiae (Reichb.f.) Ames
+555. Malaxis lepanthiflora  🫪
+556. Malaxis lepidota (Finet) Ames
+557. Malaxis macrostachya (Lex.) Kuntze
+558. Malaxis majanthemifolia Cham. & Schltr. 🫪
+559. Malaxis maxonii Ames
+560. Malaxis myurus (Lindl.) Kuntze
+561. Malaxis novogaliciana R.González (Endlémica)
+562. Malaxis pringlei (S.Watson) Ames (Endémica)
+Malaxis realdelmontensis
+563. Malaxis rzedowskiana R.González (Endémica)
+564. Malaxis soulei L.O.Williams
+Malaxis steyermarkii
+565. Malaxis unifolia Michx.
+566. Malaxis wendtii Salazar (Endémica)
+567. Malaxis wercklei (Schltr.) Ames
+Masdevallia floribunda
+Masdevallia tubuliflora
+Masdevallia tuerckheimii
+568. Maxillaria acuminata 🫂
+Maxillaria acutifolia
+569. Maxillaria alba (Hook.) Lindl.
+570. Maxillaria anceps Ames & C.Schweinf.
+571. Maxillaria caespitifica Rchb.f.
+572. Maxillaria crassifolia (Lindl.) Rchb.f. 🫪
+573. Maxillaria cobanensis Rchb.f.
+574. Maxillaria cucullata Lindl.
+575. Maxillaria curtipes. Hook.f.
+576. Maxillaria densa Lindl.
+Maxillaria discolor
+577. Maxillaria elatior Rchb.f.
+Maxillaria egertoniana
+578. Maxillaria friedrichsthalii Rchb.f.
+579. Maxillaria hagsateriana Soto Arenas (Endémica)
+Maxillaria henchmanii
+580. Maxillaria hedwigiae Hamer & Garay
+Maxillaria houtteana
+581. Maxillaria lexarzana
+582. Maxillaria macleei Bateman ex Lindl.
+Maxillaria maleolens
+583. Maxillaria meleagris Rchb.f.
+Maxillaria moralesii
+584. Maxillaria nagelii L.O.Williams (Endémica)
+585. Maxillaria nasuta Rchb.f.
+586. Maxillaria neglecta (Schltr.) L.O.Williams
+587. Maxillaria obscura Linden & Rchb.f.
+588. Maxillaria parviflora L.O.Williams
+589. Maxillaria praestans Rchb.f.
+590. Maxillaria pulchra (Schidw.) Rchb.f.
+591. Maxillaria ringens Rchb.f.
+592. Maxillaria rhombea Lindl.
+593. Maxillaria rufescens Lindl.
+594. Maxillaria scorpioidea Kraenzl.
+595. Maxillaria soconuscana Breedlove & Mally (Endémica)
+596. Maxillaria tenuifolia Lindl. (Famosa orquídea con aroma a coco) 🫪
+597. Maxillaria uncata Lindl.
+598. Maxillaria variabilis Bateman ex Lindl.
+599. Mesadenella tonduzii 👻
+600. Mesadenus chiangii (Johnst.) Garay
+601. Mesadenus lucayanus (Britt.) Garay
+602. Mesadenus polyanthus (Rchb.f.) Schltr. (Endémica)
+603. Mesadenus tenuissimus 🫪.
+604. Meiracyllium gemma Rchb.f. (Endémica) 🫪
+605. Meiracyllium trinasutum Rchb.f.
+606. Mexicoa ghiesbreghtiana A.Rich. & Galeotti🫪
+607. Mexipedium xerophyticum (Soto Arenas, Salazar & Hágsater) Albert & Chase (Género monotípico 🫪 endémico,)
+608. Microchilus querceticola (Lindl.) D.Dietr. 🫪
+609. Microchilus tridax 🫪
+610. Microchilus venustulus 🫪
+611. Microepidendrum subulatifolium W.E.Higgins 🫪
+Microthelys minutiflora
+612. Microthelys rubrocallosa (Robinson & Greenm.) Garay (Endémica)
+Mormodes aromatica
+613. Mormodes badia Rolfe ex Watson (Endémica)
+614. Mormodes buccinator 🫪
+615. Mormodes cozticxochitl Salazar (Endémica)
+616. Mormodes lineata Bateman ex Lindl.
+617. Mormodes luxata Lindl. 🫪
+618. Mormodes maculata (Kl.) L.O.Williams (Endémica
+619. Mormodes maculata var. maculata 
+620. Mormodes nagelii L.O.Williams (Endémica)
+621. Mormodes oestlundiana 🫪
+Mormodes pardalinata
+622. Mormodes porphyrophlebia Salazar (Endémica)
+623. Mormodes sanguineoclaustra Fowlie (Endémica)
+624. Mormodes sotoana Salazar (Endémica)
+Mormodes tezontle
+625. Mormodes tuxtlensis 🫪
+626. Mormodes uncia Rchb.f. (Endémica)
+627. Mormolyca ringens (Lindl.) Gentil 🫪
+628. Mormolyca hedwigiae (Hamer & Dodson) M.A.Blanco 🫪
+Muscarella fimbriata
+629. Myrmecophila christinae Carnevali & Gómez-Juárez (Endémica)
+630. Myrmecophila brysiana (Lem.) Kennedy 🫪
+Myrmecophila exaltata
+Myrmecophila galeottiana
+631. Myrmecophila grandiflora (Lindl.) Carnevali JL Tapia & I.Ramírez 🫪
+632. Myrmecophila tibicinis (Bateman) Rolfe (Orquídea de hormigas)
+633. Myrmecophila wendlandii
+634. Myoxanthus congestus
+Myoxanthus octomerioides
+Nemaconia dressleriana
+635. Nemaconia striata 🫪
+Nemaconia glomerata
+636. Nidema boothii (Lindl.) Schltr. 🫪
+637. Notylia barkeri Lindl.
+Notylia leucantha
+638. Notylia orbicularis A.Rich. & Galeotti (Endémica)
+639. Notylia trisepala Lindl.
+640. Octomeria graminifolia (L.) R.Br. 🫪
+641. Oeceoclades maculata (Lindl.) Lindl. 🫪
+642. Oestlundia cyanocolumna (Ames) Dressler (Endémica) 🫪
+643. Oestlundia distantiflora (Ames & C.Schweinf.) Dressler
+644. Oestlundia ligulata 🫪
+645. Oestlundia luteorosea (A.Rich. & Galeotti) Dressler (Endémica)
+646. Oncidium ampliatum Lindl.
+Oncidium ansiferum
+647. Oncidium ascendens Lindl.
+648. Oncidium brachyandrum Lindl. (Endémica)
+649. Oncidium cheirophorum Rchb. f. 🫪
+Oncidium endocharis
+650. Oncidium ensatum Lindl.
+651. Oncidium fasciculatum 🫪
+652. Oncidium geertianum 🫪
+653. Oncidium graminifolium (Lindl.) Lindl.
+654. Oncidium hastatum (Bateman) Lindl. (Endémica)
+655. Oncidium hintonii L.O.Williams (Endémica)
+656. Oncidium incurvum Bark. ex Lindl. (Endémica)
+657. Oncidium Iricolor
+Oncidium laeve
+658. Oncidium leleui R.Jiménez & Soto Arenas (Endémica)
+659. Oncidium leucochilum Bateman ex Lindl. 🫪
+Oncidium karwinskii
+660. Oncidium maculatum (Lindl.) Lindl.
+661. Oncidium microchilum Bateman ex Lindl.
+662. Oncidium microstigma
+663. Oncidium nebulosum Lindl. (Endémica)
+664. Oncidium oblongatum Lindl.
+665. Oncidium ochmatochilum Rchb.f.
+666. Oncidium oestlundianum 🫪
+667. Oncidium oliganthum (Rchb.f.) L.O.Williams
+668. Oncidium phymatochilum Lindl.
+669. Oncidium poikilostalix\` (Kraenzl.) M.W.Chase
+670. Oncidium reflexum\` Lindl. (Endémica)
+Oncidium reichenheimii
+671. Oncidium sotoanum.
+672. Oncidium sphacelatum\` Lindl.
+673. Oncidium stelligerum\` Rchb.f. (Endémica)
+674. Oncidium stenoglossum 🫪
+675. Oncidium suave\` Lindl. (Endémica)
+676. Oncidium tigrinum\` Lex. (Endémica)
+677. Oncidium unguiculatum\` Klotzsch (Endémica)
+678. Oncidium wentworthianum Bateman ex Lindl.
+Ornithocephalus bicornis
+Ornithocephalus dolabratus
+Ornithocephalus iridifolius
+Ornithocephalus inflexus
+Ornithocephalus tripterus
+679. Plectrophora alata (Rolfe) Garay 🫪
+680. Plectrophora cultrifolia 🫪
+681. Plectrophora iridifolia
+682. Pelexia adnata (Sw.) Spreng. 🫪
+683. Papperitzia leiboldii Rchb.f. (Endémica)
+684. Pelexia funckiana (A.Rich. & Galeotti) Schltr.
+685. Pelexia gutturosa (Rchb.f.) Garay (Endémica)
+686. Pelexia laxa (Poepp. & Endl.) Lindl.
+687. Pelexia obliqua (J.J.Sm.) Garay
+688. Pelexia olivacea 🫪
+Phloeophila peperomioides
+689. Platythelys maculata (Hook.) Garay
+690. Platythelys querceticola (Lindl.) Garay
+691. Platystele caudatisepala\` C.Schweinf.
+Platystele compacta
+Platystele jungermannioides
+692. Platystele lancilabris\` (Rchb.f.) Schltr.
+693. Platystele minimiflora\` (Schltr.) Garay
+Platystele ovatilabia
+694. Platystele oxyglossa (Schltr.) Garay 🫪
+695. Platystele pedicellaris 🫪
+696. Platystele repens\` (Ames) Garay
+697. Platystele stenostachya\` (Rchb.f.) Garay
+698. Platanthera brevifolia (Greene) Senghas 🫪
+699. Platanthera limosa Lindl. 🫪
+700. Platanthera sparsiflora 🫪
+Platanthera unalascensis
+701. Platanthera volcanica 🫂
+702. Pleurothallis antonensis\` Luer
+703. Pleurothallis barbulata 🫪
+704. Pleurothallis bivalvis\` Lindl.
+705. Pleurothallis cardiothallis\` Rchb.f. 
+Pleurothallis crocodiliceps
+706. Pleurothallis corniculata\` (Sw.) Lindl.
+Pleurothallis correllii
+707. Pleurothallis dolichopus\` Rchb.f.
+708. Pleurothallis endotrachys\` Rchb.f.
+709. Pleurothallis ghiesbreghtiana\` Rich. & Galeotti
+710. Pleurothallis gratiosa\` Rchb.f.
+711. Pleurothallis grobyi\` Bateman ex Lindl.
+712. Pleurothallis hitchcockii\` Ames
+713. Pleurothallis homalantha\` Schltr.
+714. Pleurothallis immersa\` Linden & Rchb.f.
+715. Pleurothallis matudana\` C.Schweinf.
+716. Pleurothallis microphylla\` A.Rich. & Galeotti
+718. Pleurothallis nelsonii\` Ames (Endémica)
+719. Pleurothallis oblanceolata\` L.O.Williams (Endémica)
+720. Pleurothallis ornata
+721. Pleurothallis pachyglossa\` Lindl.
+722. Pleurothallis pansamalae\` Schltr.
+723. Pleurothallis platystylis\` Schltr.
+724. Pleurothallis pruinosa 🫪
+725. Pleurothallis quadrifida\` (Lex.) Lindl.
+726. Pleurothallis saccatilabia A.Rich. & Galeotti 👻
+Pleurothallis sanchoi
+727. Pleurothallis ruscifolia\` (Jacq.) R.Br. 🫪
+728. Pleurothallis scariosa\` Benth. (Endémica)
+729. Pleurothallis sertularioides\` (Sw.) Spreng.
+730. Pleurothallis smithiana 🫪
+731. Pleurothallis tubatus
+732. Pleurothallis tribuloides 🫪
+733. Pleurothallis tuerckheimii\` Schltr.
+734. Pleurothallis violacea\` Rich. & Galeotti (Endémica)
+Pleurothallopsis ujarensis 
+735. Polystachya concreta (Jacq.) Garay & H.R.Sweet 🫪
+736. Polystachya foliosa (Hook.) Rchb.f. 🫪
+Polystachya masayensis
+Polystachya lineata
+737. Ponera exilis\` Dressler (Endémica)
+738. Ponera juncifolia\` Lindl. +3🪨👑
+739. Ponthieva brenesii\` Schltr.
+740. Ponthieva brittoniae 🫪
+741. Ponthieva ephippium\` Rchb.f.
+742. Ponthieva fertilis 🫪
+743. Ponthieva formosa\` Schltr.
+744. Ponthieva maculata\` Lindl.
+Ponthieva parvula
+745. Ponthieva racemosa\` (Walter) Mohr
+Ponthieva rinconii
+746. Ponthieva schaffneri\` Rchb.f.
+Ponthieva triloba
+747. Ponthieva tuerckheimii Schltr. 🫪
+Ponthieva villosa
+Phragmipedium exstaminodium
+Phragmipedium humboldtii
+748. Phragmipedium warscewiczii 🫪
+749. Prescottia stachyodes (Sw.) Lindl. 🫪
+750. Prescottia oligantha (Sw.) Lindl.
+751. Prosthechea abbreviata 🫪
+752. Prosthechea aemula 🫪
+753. Prosthechea baculus (Rchb.f.) W.E.Higgins 🫪
+Prosthechea bicamerata
+Prosthechea boothiana
+Prosthechea brachiata
+754. Prosthechea brassavolae (Rchb.f.) W.E.Higgins 🫪
+755. Prosthechea campylostalix (Rchb.f.) W.E.Higgins 🫪
+756. Prosthechea cochleata\` (L.) W.E.Higgins (Orquídea pulpo)
+757. Prosthechea chacaoensis (Rchb.f.) W.E.Higgins
+758. Prosthechea chondylobulbon (A.Rich. & Galeotti) W.E.Higgins
+759. Prosthechea citrina (Lex.) W.E.Higgins (Endémica - Famosa "Limosnita" de flores amarillas colgantes)
+Prosthechea concolor
+760. Prosthechea crassilabia 🫪
+761. Prosthechea cretacea (Dressler & G.E.Pollard) W.E.Higgins 🫪
+Prosthechea favoris
+762. Prosthechea fragrans 🫪
+763. Prosthechea ghiesbreghtiana (A.Rich. & Galeotti) W.E.Higgins (Endémica)
+764. Prosthechea glauca Knowles & Westc
+Prosthechea greenwoodiana
+Prosthechea guttata
+765. Prosthechea hastata (Rchb.f.) W.E.Higgins (Endémica)
+766. Prosthechea ionophlebia (Rchb.f.) W.E.Higgins
+767. Prosthechea karwinskii (Mart.) Soto Arenas & Salazar (Endémica)
+768. Prosthechea linkiana (Klotzsch) W.E.Higgins (Endémica)
+769. Prosthechea livida (Lindl.) W.E.Higgins
+Prosthechea madrensis
+Prosthechea magnispatha
+770. Prosthechea mariae (Ames) W.E.Higgins (Endémica - Muy cotizada por sus enormes flores verdes y blancas)
+771. Prosthechea michuacana (Lex.) W.E.Higgins
+772. Prosthechea micropus (Rchb.f.) W.E.Higgins (Endémica)
+773. Prosthechea neurosa (Ames) W.E.Higgins
+774. Prosthechea obpiribulbon (Hagsater) W.E.Higgins (Endémica)
+775. Prosthechea ochracea (Lindl.) W.E.Higgins
+776. Prosthechea pastoris
+777. Prosthechea panthera (Rchb.f.) W.E.Higgins 🫪
+778. Prosthechea pringlei (Rolfe) W.E.Higgins (Endémica)
+779. Prosthechea prismatocarpa (Rchb.f.) W.E.Higgins
+780. Prosthechea pseudopygmaea (A.Finck) W.E.Higgins
+781. Prosthechea pterocarpa (Lindl.) W.E.Higgins (Endémica)
+Prosthechea punctulata
+782. Prosthechea pygmaea (Hook.) W.E.Higgins
+783. Prosthechea radiata (Lindl.) W.E.Higgins (Orquídea estrella, muy aromática)
+784. Prosthechea rhynchophora (A.Rich. & Galeotti) W.E.Higgins
+785. Prosthechea semiaperta (Hagsater) W.E.Higgins (Endémica)
+786. Prosthechea squalida (Llave & Lex.) W.E.Higgins (Endémica)
+787. Prosthechea trulla (Rchb.f.) W.E.Higgins (Endémica)
+788. Prosthechea vagans (Ames) W.E.Higgins
+789. Prosthechea varicosa (Lindl.) W.E.Higgins
+790. Prosthechea vitellina (Lindl.) W.E.Higgins (Famosa por sus flores rojo-anaranjado brillante)
+791. Pseudocentrum macrostachyum Rchb.f.
+792. Psilochilus macrophyllus (Lindl.) Ames
+793. Pterichis galeana Schwf. 🫪
+794. Pteroglossa roseoalba (Rchb.f.) Salazar & M.W.Chase
+Restrepia antennifera
+795. Restrepia muscifera (Lindl.) Rchb.f. ex Lindl. 🫪
+796. Restrepia trichoglossa Rchb.f. 🫪
+797. Restrepiella ophiocephala (Lindl.) Garay & Dunsterv. 🫪
+798. Rhetinantha aciantha (Rchb.f.) M.A.Blanco
+799. Rhetinantha friedrichsthalii (Rchb.f.) M.A.Blanco
+800. Rhyncholaelia digbyana (Fisch. ex Lindl.) Schltr. (Famosa por su labelo gigante y flecado)
+802. Rhyncholaelia glauca (Lindl.) Schltr.
+803. Rhynchostele aptera (Llave & Lex.) Soto 804. Arenas & Salazar (Endémica)
+804. Rhynchostele bictoniensis (Bateman) Soto Arenas & Salazar
+805. Rhynchostele candidula (Rchb.f.) Soto Arenas & Salazar (Endémica)
+806. Rhynchostele cervantesii (Llave & Lex.) Soto Arenas & Salazar (Endémica)
+807. Rhynchostele cordata (Lindl.) Soto Arenas & Salazar
+808. Rhynchostele ehrenbergii (Link, Klotzsch & Otto) Soto Arenas & Salazar (Endémica)
+809. Rhynchostele galeottiana (A.Rich.) Soto Arenas & Salazar (Endémica)
+810. Rhynchostele londesboroughiana (Rchb.f.) Soto Arenas & Salazar (Endémica)
+811. Rhynchostele maculata (Llave & Lex.) Soto Arenas & Salazar (Endémica)
+812. Rhynchostele madrensis (Rchb.f.) Soto Arenas & Salazar (Endémica)
+813. Rhynchostele majalis (Rchb.f.) Soto Arenas & Salazar
+814. Rhynchostele pygmaea (Lindl.) Rchb.f.
+815. Rhynchostele rossii (Lindl.) Soto Arenas & Salazar
+816. Rhynchostele stellata (Lindl.) Soto Arenas & Salazar
+817. Rhynchostele uroskinneri (Lindl.) Soto Arenas & Salazar 
+818. Rossioglossum grande (Lindl.) Garay & Kennedy🫪
+819. Rossioglossum hagsaterianum 🫪
+820. Rossioglossum insleayi (Barker ex Lindl.) Garay & Kennedy 🫪
+821. Rossioglossum splendens (Reichenb.f.) Garay & Kennedy 🫂
+822. Rossioglossum williamsianum 🫪
+823. Sacoila lanceolata (Aubl.) Garay
+Sarcoglottis acaulis
+824. Sarcoglottis assurgens (Rchb.f.) Schltr.
+825. Sarcoglottis cerina (Lindl.) P.Ortiz
+826. Sarcoglottis corymbosa Garay (Endémica)
+Sarcoglottis pauciflora
+827. Sarcoglottis rosulata\` (Lindl.) P.Ortiz
+828. Sarcoglottis schaffneri\` (Rchb.f.) Ames (Endémica)
+829. Sarcoglottis sceptrodes \` (Rchb.f.) Schltr.
+830. Sarcoglottis smithii\` (Rchb.f.) Schltr.
+Scaphosepalum microdactylum
+Scaphyglottis behrii
+831. Scaphyglottis bidentata\` (Lindl.) Dressler
+Scaphyglottis boliviensis
+832. Scaphyglottis confusa 🫪
+833. Scaphyglottis crurigera\` (Bateman ex Lindl.) Ames & Correll
+834. Scaphyglottis fasciculata\` Hook.
+835. Scaphyglottis graminifolia\` (Ruiz & Pav.) Poepp. & Endl.
+Scaphyglottis hondurensis
+836. Scaphyglottis imbricata\` (Lindl.) Dressler
+Scaphyglottis leucantha
+837. Scaphyglottis lindeniana\` (A.Rich. & Galeotti) L.O.Williams
+839. Scaphyglottis livida\` (Lindl.) Schltr.
+840. Scaphyglottis longicaulis\` S.Watson
+841. Scaphyglottis micrantha\` (Lindl.) Ames & Correll
+842. Scaphyglottis minutiflora\` Ames & Correll
+843. Scaphyglottis prolifera\` (R.Br.) Cogn..
+844. Scaphyglotta reflexa\` Lindl.
+845. Scaphyglottis sigmoidea 🫪 +4
+Scaphyglottis tenuis
+846. Schiedeella affinis 👻
+847. Schiedeella albovaginata 🫪
+848. Schiedeella arizonica 🫪
+849. Schiedeella crenulata (L.O.Williams) Espejo & López-Ferr. 🫪
+850. Schiedeella nagelii\` (L.O.Williams) Garay (Endémica)
+851. Schiedeella transversalis 🫪
+852. Schiedeella trilineata\` (Lindl.) Balogh
+853. Sigmatostalix guatemalensis\` Schltr. 🫪
+854. Sigmatostalix mexicana\` Rchb.f. (Endémica) 
+855. Sobralia atropubescens 🫪
+Sobralia crispissima
+856. Sobralia decora\` Bateman
+857. Sobralia fragrans\` Lindl.
+858. Sobralia galeottiana\` A.Rich. (Endémica)
+859. Sobralia leucoxantha 🫪
+860. Sobralia Lindleyana Rchb.f. 🫂
+Sobralia macra
+861. Sobralia macrantha\` Lindl. (Famosa por sus flores gigantes parecidas a las Cattleyas)
+Sobralia macdougallii
+862. Sobralia mucronata\` Ames & C.Schweinf. 🫪
+863. Sobralia rosea Poepp. & Endl. 🫪
+864. Sobralia xantholeuca\` Rchb.f.
+865. Sotoa confusa 🫪
+866. Specklinia aristata 🫪
+867. Specklinia brighamii (Wats.) Pridgeon & M.W.Chase 🫪
+868. Specklinia corniculata (Sw.) Steud. 🫪
+869. Specklinia digitale\`
+870. Specklinia endotrachys (Reichenb.f.) Pridgeon & M.W.Chase 🫪
+871. Specklinia Fuegii
+Specklinia glandulosa
+872. Specklinia picta 🫂
+873. Specklinia pisinna
+874. Specklinia spectabilis 🫪
+875. Specklinia tribuloides 🫪
+876. Spiranthes graminea\` Lindl.
+877. Spiranthes torta 🫪
+878. Spiranthes vernalis\` Engelm. & A.Gray
+879. Stanhopea bucephalus\` Lindl.
+880. Stanhopea cirrhata\` Lindl.
+881. Stanhopea dodsoniana\` Salazar & Soto Arenas
+882. Stanhopea ecornuta\` Lem.
+883. Stanhopea graveolens 🫪
+884. Stanhopea hernandezii\` (Kunth) Schltr. (Endémica - Primera Stanhopea descrita e ilustrada en el Códice Badiano)
+885. Stanhopea inodora\` Lodd. ex Lindl.
+886. Stanhopea intermedia\` K單zl. (Endémica
+887. Stanhopea maculosa\` Knowles & Westc. (Endémica)
+888. Stanhopea martiana\` Jenny (Endémica)
+Stanhopea novogaliciana
+889. Stanhopea oculata\` (Loddiges) Lindl.
+890. Stanhopea pseudoradiosa 🫪
+891. Stanhopea radiosa\` Lem. (Endémica)
+892. Stanhopea ruckeri 🫪
+893. Stanhopea saccata\` Bateman
+894. Stanhopea tigrina\` Bateman ex Lindl. (Endémica - Flores espectaculares y enormes con aroma a chocolate) 🫪
+895. Stanhopea wardii\` Loddiges ex Lindl.
+896. Stanhopea whittenii\` Soto Arenas
+Stelis aeolica
+897. Stelis argentata\` Lindl.
+Stelis chiapensis
+898. Stelis ciliaris Lindl. 🫪
+899. Stelis cobanensis\` (Schltr.) Pridgeon & M.W.Chase
+Stelis deregularis
+Stelis emarginata
+900. Stelis fulva\` Schltr.
+901. Stelis gelida 🫪
+902. Stelis gracilis 🫪
+903. Stelis greenwoodii\` Solano (Endémica)
+904. Stelis guatemalensis\` Schltr.
+905. Stelis hymenantha 🫪
+906. Stelis jalapensis 
+907. Stelis megachlamys 🫪
+908. Stelis Microchila
+Stelis nagelii
+909. Stelis nigriflora
+910. Stelis oaxacana\` Solano (Endémica)
+911. Stelis ornata\` Solano (Endémica)
+912. Stelis ovatilabia\` Hamer & Garay
+913. Stelis pachyglossa Luer
+914. Stelis parvula Schltr.
+915. Stelis purpurascens\` A.Rich. & Galeotti
+916. Stelis resupinata\` (A.Rich. & Galeotti) Pridgeon & M.W.Chase (Endémica)
+Stelis retusa
+917. Stelis rubens 🫂
+Stelis rufobrunnea
+918. Stelis segoviensis
+Stelis sotoana
+Stelis superbiens
+Stelis veracrucensis
+919. Stelis vespertina\` Solano (Endémica)
+920. Stelis villosa\` (Knowles & Westc.) Pridgeon & M.W.Chase
+921. Stelis Xerophila
+922. Stelis zootrophionoides
+923. Stenorrhynchos albidomaculatum Kraenzl.
+924. Stenorrhynchos glicensteinii\` Christenson
+925. Stenorrhynchos speciosum\` (Jacq.) Rich. ex Spreng.
+926. Stenotyla lendyana (Reichenbach f.) Dressler 🫪
+927. Tamayorkis hintonii 🫪
+928. Tamayorkis porphyrea
+929. Telipogon helleri L.O.Williams 🫪
+930. Telipogon standleyi 🫂
+931. Teuscheria pickiana\` (Schltr.) Garay 🫂
+932. Tolumnia guttata
+933. Trichocentrum ascendens (Lindl.) M.W.Chase & N.H.Williams 🫪
+934. Trichocentrum andreanum\` (Cogn.) R.Jiménez & Carnevali (Endémica)
+935. Trichocentrum candidum\` Lindl.
+936. Trichocentrum capistratum
+937. Trichocentrum carthagenense\` (Jacq.) M.W.Chase & N.H.Williams (Oreja de burro común)
+938. Trichocentrum cavendishianum 🫪
+939. Trichocentrum cebolleta\` (Jacq.) M.W.Chase & N.H.Williams (Hojas teretes, cilíndricas)
+Trichocentrum chrysops
+Trichocentrum cosymbephorum
+940. Trichocentrum bicallosum 🫪
+941. Trichocentrum brachyphyllum (Hildner) R.Jiménez 🫪
+Trichocentrum flavovirens
+Trichocentrum hoegei
+942. Trichocentrum lindenii (Brongn.) M.W.Chase & N.H.Williams 🫪
+Trichocentrum oerstedii 
+Trichocentrum oestlundianum
+943. Trichocentrum Oncidium longifolium
+944. Trichocentrum luridum\` (Lindl.) M.W.Chase & N.H.Williams
+945. Trichocentrum margalefii\` (Hágsater) M.W.Chase & N.H.Williams (Endémica)
+946. Trichocentrum microchilum\` (Bateman ex Lindl.) M.W.Chase & N.H.Williams
+947. Trichocentrum nataliae\` (Balam & Carnevali) R.Jiménez & Solano (Endémica) M.W.Chase & N.H.Williams
+948. Trichocentrum oestlundianum\` (L.O.Williams) R.Jiménez & Carnevali (Endémica)
+949. Trichocentrum pachyphyllum\` (Hag.) M.W.Chase & N.H.Williams (Endémica)
+950. Trichocentrum stramineum\` (Bateman ex Lindl.) MW.Chase & N.H.Williams (Endémica)
+951. Trichocentrum undulatum 🫪
+952. Trichocentrum yucatanense\` (Cetzal & Carnevali) R.Jiménez & Solano (Endémica)
+953. Trichopilia galeottiana\` A.Rich. & Galeotti
+954. Trichopilia marginata\` Henfr.
+955. Trichopilia oicophylax\` Rchb.f.
+956. Trichopilia subulata 🫪
+957. Trichopilia tortilis\` Lindl. (Flores con pétalos y sépalos retorcidos en espiral, muy llamativa)
+958. Trichosalpinx blaisdellii\` (S.Watson) Luer
+959. Trichosalpinx cedralensis\` (Ames) Luer 🫪
+960. Trichosalpinx chamaelepanthes
+961. Trichosalpinx ciliaris\` (Lindl.) Luer
+962. Trichosalpinx dura\` (Lindl.) Luer
+963. Trichosalpinx escobarii\` Luer
+964. Trichosalpinx memor\` (Rchb.f.) Luer
+965. Trichosalpinx pringlei (Rolfe) Luer (Endémica)
+966. Trichosalpinx triangulipetala 🫪
+967. Triphora debilis\` (Schltr.) Schltr.
+968. Triphora gentianoides\` (Sw.) Ames & Schltr.
+969. Triphora hassleriana\` (Cogn. ex Chodat & Hassl.) Schltr.
+970. Triphora mexicana\` (Watson) Schltr.
+971. Triphora trianthophoros\` (Sw.) Rydb.
+972. Triphora yucatanensis\` Ames
+973. Tropidia polystachya\` (Sw.) Ames
+974. Vanilla calyculata\` Schltr. (Endémica)
+975. Vanilla cribbiana\` Soto Arenas
+976. Vanilla fimbriata\` Rolfe
+977. Vanilla hartii\` Rolfe
+978. Vanilla helleri\` A.D.Hawkes
+979. Vanilla insignis\` Ames (Vainilla silvestre de flores vistosas)
+980. Vanilla inodora\` Schiede
+981. Vanilla marowynensis\` Pulle
+982. Vanilla mexicana\` Mill.
+983. Vanilla odorata\` Presl
+984. Vanilla phaeantha\` Rchb.f.
+985. Vanilla planifolia\` Jacks. ex Andrews (La vainilla comercial, originaria de México)
+986. Vanilla pompona\` Schiede (Vainilla plátano, frutos cortos y gruesos de aroma intenso)
+987. Vanilla trigonocarpa\` Hoehne
+Warrea costaricensis
+988. Wullschlaegelia aphylla\` (Sw.) Rchb.f. (Orquídea saprófita, sin clorofila)
+989. Wullschlaegelia calcarata\` Benth.
+990. Xylobium colleyi\` (Bateman ex Lindl.) Rolfe
+991. Xylobium elongatum (I.Bock) Jenny 🫪
+992. Xylobium foveatum\` (Lindl.) Nicholson
+993. Xylobium sulfurinum\` (Lem.) Schltr.
+Xylobium variegatum\` (Ruiz & Pav.) Garay &
+994. Zhukowskia scintillans`;
+
+fs.writeFileSync('raw_species.txt', rawText, 'utf8');
+console.log('Saved raw_species.txt');
