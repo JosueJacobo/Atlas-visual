@@ -178,7 +178,22 @@ export const ContinuousIndexModal: React.FC<ContinuousIndexModalProps> = ({
               className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-400/40 rounded-lg font-medium flex items-center gap-1.5 transition-colors"
             >
               {copiedList ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-              <span>{copiedList ? '¡Copiado para Docs!' : 'Copiar para Google Docs'}</span>
+              <span>{copiedList ? '¡Copiado para Docs!' : 'Copiar para Docs'}</span>
+            </button>
+
+            <button
+              onClick={() => {
+                const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(speciesList, null, 2));
+                const a = document.createElement('a');
+                a.href = dataStr;
+                a.download = `atlas_orquideas_mexico_${speciesList.length}_especies.json`;
+                a.click();
+              }}
+              title="Descargar base de datos completa en JSON"
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg font-medium flex items-center gap-1.5 transition-colors"
+            >
+              <Download className="w-4 h-4 text-blue-400" />
+              <span>Descargar JSON</span>
             </button>
           </div>
         </div>
