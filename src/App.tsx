@@ -6,6 +6,7 @@ import { OrchidEditorDrawer } from './components/OrchidEditorDrawer';
 import { ContinuousIndexModal } from './components/ContinuousIndexModal';
 import { GoogleDocsExportModal } from './components/GoogleDocsExportModal';
 import { KdpSettingsModal } from './components/KdpSettingsModal';
+import { BackupModal } from './components/BackupModal';
 import {
   ChevronLeft,
   ChevronRight,
@@ -25,7 +26,8 @@ import {
   Download,
   RotateCcw,
   Check,
-  Layers
+  Layers,
+  ShieldCheck
 } from 'lucide-react';
 
 const STORAGE_KEY = 'atlas_orquideas_mexico_v1';
@@ -65,6 +67,7 @@ export default function App() {
   const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
   const [isGoogleDocsModalOpen, setIsGoogleDocsModalOpen] = useState(false);
   const [isKdpModalOpen, setIsKdpModalOpen] = useState(false);
+  const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
   const [jumpInput, setJumpInput] = useState('');
 
   // KDP Print & Bleed Settings
@@ -297,6 +300,16 @@ export default function App() {
           >
             <Printer className="w-3.5 h-3.5" />
             <span className="hidden md:inline">Imprimir / PDF 6x9</span>
+          </button>
+
+          {/* Backup & Security Button */}
+          <button
+            onClick={() => setIsBackupModalOpen(true)}
+            title="Copia de seguridad y protección de datos"
+            className="px-2.5 sm:px-3 py-1.5 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden sm:inline">Respaldar</span>
           </button>
 
           {/* Edit current species drawer */}
@@ -578,6 +591,17 @@ export default function App() {
         isOpen={isKdpModalOpen}
         onClose={() => setIsKdpModalOpen(false)}
         onTriggerPrint={() => window.print()}
+      />
+
+      <BackupModal
+        speciesList={speciesList}
+        isOpen={isBackupModalOpen}
+        onClose={() => setIsBackupModalOpen(false)}
+        onRestoreBackup={(restored) => {
+          setSpeciesList(restored);
+          setCurrentIndex(0);
+        }}
+        onResetToDefaults={handleResetData}
       />
     </div>
   );
