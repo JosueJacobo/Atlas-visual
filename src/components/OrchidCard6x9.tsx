@@ -9,6 +9,7 @@ interface OrchidCard6x9Props {
   onUpdateSpecies: (updated: Partial<OrchidSpecies>) => void;
   onOpenEditor: () => void;
   scale?: number;
+  canEdit?: boolean;
 }
 
 export const OrchidCard6x9: React.FC<OrchidCard6x9Props> = ({
@@ -16,7 +17,8 @@ export const OrchidCard6x9: React.FC<OrchidCard6x9Props> = ({
   kdpGuides,
   onUpdateSpecies,
   onOpenEditor,
-  scale = 1
+  scale = 1,
+  canEdit = false
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef2 = useRef<HTMLInputElement>(null);
@@ -47,12 +49,15 @@ export const OrchidCard6x9: React.FC<OrchidCard6x9Props> = ({
     onUpdateSpecies({ conservationStatus: status });
   };
 
+  const baseWidth = 560;
+  const baseHeight = 840;
+
   return (
     <div
-      className="relative flex items-center justify-center p-2 sm:p-6 transition-all"
+      className="relative flex items-center justify-center transition-all overflow-visible max-w-full my-1 sm:my-4"
       style={{
-        transform: scale !== 1 ? `scale(${scale})` : undefined,
-        transformOrigin: 'top center'
+        width: scale === 1 ? undefined : baseWidth * scale,
+        height: scale === 1 ? undefined : baseHeight * scale,
       }}
     >
       {/* 
@@ -64,7 +69,9 @@ export const OrchidCard6x9: React.FC<OrchidCard6x9Props> = ({
         id={`orchid-page-${species.speciesCode}`}
         className="print-page-wrapper relative w-[560px] h-[840px] bg-white text-slate-900 shadow-2xl overflow-hidden flex flex-col justify-between border border-slate-300 select-text"
         style={{
-          boxSizing: 'border-box'
+          boxSizing: 'border-box',
+          transform: scale !== 1 ? `scale(${scale})` : undefined,
+          transformOrigin: 'top left',
         }}
       >
         {/* KDP Bleed / Trim / Safe Zone Overlays (only visible in design mode if enabled) */}
@@ -165,13 +172,15 @@ export const OrchidCard6x9: React.FC<OrchidCard6x9Props> = ({
                     alt={`${species.scientificName} 1`}
                     className="w-full h-full object-cover"
                   />
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    title="Cambiar fotografía 1"
-                    className="no-print absolute top-1 left-1 bg-black/60 hover:bg-black/80 text-white p-1 rounded backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Camera className="w-3 h-3" />
-                  </button>
+                  {canEdit && (
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      title="Cambiar fotografía 1"
+                      className="no-print absolute top-1 left-1 bg-black/60 hover:bg-black/80 text-white p-1 rounded backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Camera className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
 
                 {/* Photo 2 (Split) */}
@@ -181,20 +190,22 @@ export const OrchidCard6x9: React.FC<OrchidCard6x9Props> = ({
                     alt={`${species.scientificName} 2`}
                     className="w-full h-full object-cover"
                   />
-                  <button
-                    onClick={() => fileInputRef2.current?.click()}
-                    title="Cambiar fotografía 2 (detalle)"
-                    className="no-print absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white p-1 rounded backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Upload className="w-3 h-3" />
-                  </button>
+                  {canEdit && (
+                    <button
+                      onClick={() => fileInputRef2.current?.click()}
+                      title="Cambiar fotografía 2 (detalle)"
+                      className="no-print absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white p-1 rounded backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Upload className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
               </div>
 
               {/* Photo Attribution Footer (Canva Style) */}
               <div className="absolute bottom-0 inset-x-0 bg-black/75 backdrop-blur-xs text-[7.5px] text-amber-200/90 px-2 py-0.5 flex justify-between items-center border-t border-amber-500/20">
                 <span className="truncate">{credit}</span>
-                <span className="no-print text-[7px] text-slate-300">Clic para cambiar</span>
+                {canEdit && <span className="no-print text-[7px] text-slate-300">Clic para cambiar</span>}
               </div>
             </div>
 
@@ -384,13 +395,15 @@ export const OrchidCard6x9: React.FC<OrchidCard6x9Props> = ({
                 <span>ESTADO DE CONSERVACIÓN</span>
                 <span className="text-[7px] font-normal text-slate-500">(NOM-059)</span>
               </div>
-              <button
-                onClick={onOpenEditor}
-                className="no-print text-[7.5px] text-emerald-700 hover:underline flex items-center gap-0.5"
-              >
-                <Info className="w-2.5 h-2.5" />
-                Editar ficha
-              </button>
+              {canEdit && (
+                <button
+                  onClick={onOpenEditor}
+                  className="no-print text-[7.5px] text-emerald-700 hover:underline flex items-center gap-0.5"
+                >
+                  <Info className="w-2.5 h-2.5" />
+                  Editar ficha
+                </button>
+              )}
             </div>
 
             {/* The 5 Official Status Circles */}
@@ -406,9 +419,12 @@ export const OrchidCard6x9: React.FC<OrchidCard6x9Props> = ({
                 return (
                   <button
                     key={item.code}
-                    onClick={() => handleStatusClick(item.code as ConservationStatus)}
-                    title={`${item.code}: ${item.desc} (Clic para seleccionar)`}
-                    className={`flex flex-col items-center cursor-pointer transition-transform ${
+                    disabled={!canEdit}
+                    onClick={() => canEdit && handleStatusClick(item.code as ConservationStatus)}
+                    title={canEdit ? `${item.code}: ${item.desc} (Clic para seleccionar)` : `${item.code}: ${item.desc}`}
+                    className={`flex flex-col items-center transition-transform ${
+                      canEdit ? 'cursor-pointer' : 'cursor-default'
+                    } ${
                       isSelected ? 'scale-105' : 'opacity-65 hover:opacity-100'
                     }`}
                   >

@@ -2,11 +2,22 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { OrchidSpecies, KDPGuideSettings, ConservationStatus } from './types';
 import { INITIAL_SPECIES_LIST } from './data/speciesData';
 import { OrchidCard6x9 } from './components/OrchidCard6x9';
+import { MobileBotanicalView } from './components/MobileBotanicalView';
+import { MexicoDistributionMap } from './components/MexicoDistributionMap';
 import { OrchidEditorDrawer } from './components/OrchidEditorDrawer';
 import { ContinuousIndexModal } from './components/ContinuousIndexModal';
 import { GoogleDocsExportModal } from './components/GoogleDocsExportModal';
 import { KdpSettingsModal } from './components/KdpSettingsModal';
 import { BackupModal } from './components/BackupModal';
+import { AdminAuthModal } from './components/AdminAuthModal';
+import { 
+  auth, 
+  ADMIN_EMAIL, 
+  isOwnerOrAdmin, 
+  saveSpeciesToFirestore, 
+  subscribeToCloudEdits 
+} from './services/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import {
   ChevronLeft,
   ChevronRight,
@@ -27,7 +38,14 @@ import {
   RotateCcw,
   Check,
   Layers,
-  ShieldCheck
+  ShieldCheck,
+  Smartphone,
+  Globe,
+  MoreVertical,
+  Lock,
+  Sliders,
+  CheckCircle2,
+  Compass
 } from 'lucide-react';
 
 const STORAGE_KEY = 'atlas_orquideas_mexico_v1';
@@ -49,7 +67,31 @@ export default function App() {
     return INITIAL_SPECIES_LIST;
   });
 
-  // Current species index (find Acianthera johnsonii or default to index 10)
+  // Current user & Admin status
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean>(() => {
+    return localStorage.getItem('atlas_admin_active') === 'true';
+  });
+
+  // Responsive screen width detection
+  const [windowWidth, setWindowWidth] = useState<number>(() => {
+    return typeof window !== 'undefined' ? window.innerWidth : 1024;
+  });
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const isMobile = windowWidth < 768;
+
+  // View Mode: 'mobile' (fluid reading on phone), 'card6x9' (exact KDP Canva layout), 'map', 'grid'
+  const [viewMode, setViewMode] = useState<'mobile' | 'card6x9' | 'map' | 'grid'>(() => {
+    return typeof window !== 'undefined' && window.innerWidth < 768 ? 'mobile' : 'card6x9';
+  });
+
+  // Current species index (find Acianthera johnsonii or default to 0)
   const defaultIdx = useMemo(() => {
     const idx = speciesList.findIndex(s => s.scientificName.toLowerCase().includes('johnsonii'));
     return idx !== -1 ? idx : 0;
@@ -57,10 +99,12 @@ export default function App() {
 
   const [currentIndex, setCurrentIndex] = useState<number>(defaultIdx);
   const [zoomLevel, setZoomLevel] = useState<number>(0.92);
-  const [viewMode, setViewMode] = useState<'card' | 'grid'>('card');
+
+  // Search & Filters
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedGenusFilter, setSelectedGenusFilter] = useState<string>('all');
   const [filterEndemicOnly, setFilterEndemicOnly] = useState<boolean>(false);
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [jumpInput, setJumpInput] = useState('');
 
   // Modals & Drawer States
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -68,7 +112,8 @@ export default function App() {
   const [isGoogleDocsModalOpen, setIsGoogleDocsModalOpen] = useState(false);
   const [isKdpModalOpen, setIsKdpModalOpen] = useState(false);
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
-  const [jumpInput, setJumpInput] = useState('');
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isToolsDropdownOpen, setIsToolsDropdownOpen] = useState(false);
 
   // KDP Print & Bleed Settings
   const [kdpGuides, setKdpGuides] = useState<KDPGuideSettings>({
@@ -79,19 +124,58 @@ export default function App() {
     spineSide: 'left'
   });
 
+  // Auth listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      if (user && isOwnerOrAdmin(user)) {
+        setIsAdmin(true);
+        localStorage.setItem('atlas_admin_active', 'true');
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Listen to Firestore real-time cloud edits so changes by the owner stay for EVERYONE
+  useEffect(() => {
+    const unsubscribe = subscribeToCloudEdits((cloudEdits) => {
+      setSpeciesList(prev => {
+        let changed = false;
+        const next = prev.map(sp => {
+          if (cloudEdits[sp.speciesCode]) {
+            changed = true;
+            return { ...sp, ...cloudEdits[sp.speciesCode] };
+          }
+          return sp;
+        });
+        return changed ? next : prev;
+      });
+    });
+    return () => unsubscribe();
+  }, []);
+
   // Save to localStorage whenever speciesList changes
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(speciesList));
     } catch (e) {
-      console.warn('LocalStorage quota or serialization error:', e);
+      console.warn('LocalStorage error:', e);
     }
   }, [speciesList]);
 
   // Current active species
   const currentSpecies: OrchidSpecies = speciesList[currentIndex] || speciesList[0];
 
-  // Distinct Genera list for quick filtering
+  // Auto-fit scale for 6x9 Canva card on mobile: NO CUT-OFFS EVER!
+  const effectiveCardScale = useMemo(() => {
+    if (windowWidth >= 768) return zoomLevel;
+    // On phones (e.g. 360px - 412px), calculate exact factor so 560px fits screen with padding
+    const padding = 20;
+    const availableWidth = Math.max(280, windowWidth - padding);
+    return Math.min(1, availableWidth / 560);
+  }, [windowWidth, zoomLevel]);
+
+  // Distinct Genera list
   const popularGenera = useMemo(() => {
     const map = new Map<string, number>();
     speciesList.forEach(s => {
@@ -99,92 +183,113 @@ export default function App() {
     });
     return Array.from(map.entries())
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
+      .slice(0, 8)
       .map(entry => entry[0]);
   }, [speciesList]);
 
-  // Filtered list for Grid View or Quick Jump
+  // Filtered list
   const filteredSpecies = useMemo(() => {
     return speciesList.filter(s => {
       const matchSearch =
         s.scientificName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         s.speciesCode.includes(searchQuery) ||
         s.commonName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        s.genus.toLowerCase().includes(searchQuery.toLowerCase());
+        s.genus.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (s.mexicoStates && s.mexicoStates.some(st => st.toLowerCase().includes(searchQuery.toLowerCase())));
 
-      if (!matchSearch) return false;
-      if (selectedGenusFilter !== 'all' && s.genus !== selectedGenusFilter) return false;
-      if (filterEndemicOnly && !s.isEndemic) return false;
-      return true;
+      const matchGenus = selectedGenusFilter === 'all' || s.genus === selectedGenusFilter;
+      const matchEndemic = !filterEndemicOnly || s.isEndemic;
+
+      return matchSearch && matchGenus && matchEndemic;
     });
   }, [speciesList, searchQuery, selectedGenusFilter, filterEndemicOnly]);
 
-  // Navigation Handlers
+  // Navigation handlers
   const handlePrev = () => {
-    setCurrentIndex(prev => (prev > 0 ? prev - 1 : speciesList.length - 1));
+    setCurrentIndex(prev => (prev === 0 ? speciesList.length - 1 : prev - 1));
   };
 
   const handleNext = () => {
-    setCurrentIndex(prev => (prev < speciesList.length - 1 ? prev + 1 : 0));
+    setCurrentIndex(prev => (prev === speciesList.length - 1 ? 0 : prev + 1));
   };
 
   const handleRandom = () => {
-    const rand = Math.floor(Math.random() * speciesList.length);
-    setCurrentIndex(rand);
+    const randomIdx = Math.floor(Math.random() * speciesList.length);
+    setCurrentIndex(randomIdx);
   };
 
-  const handleJumpToCode = (e: React.FormEvent) => {
+  const handleJumpSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!jumpInput.trim()) return;
+    const query = jumpInput.trim().toLowerCase();
+    if (!query) return;
 
-    // Search by code or number
-    const targetCode = jumpInput.trim().padStart(4, '0');
-    const idx = speciesList.findIndex(
-      s => s.speciesCode === targetCode || String(s.continuousIndex) === jumpInput.trim()
-    );
-    if (idx !== -1) {
-      setCurrentIndex(idx);
+    const codeNum = parseInt(query, 10);
+    let targetIdx = -1;
+
+    if (!isNaN(codeNum)) {
+      targetIdx = speciesList.findIndex(
+        s => s.continuousIndex === codeNum || s.speciesCode === query.padStart(4, '0')
+      );
+    }
+
+    if (targetIdx === -1) {
+      targetIdx = speciesList.findIndex(
+        s => s.scientificName.toLowerCase().includes(query) || s.commonName.toLowerCase().includes(query)
+      );
+    }
+
+    if (targetIdx !== -1) {
+      setCurrentIndex(targetIdx);
       setJumpInput('');
     } else {
-      // Search by text
-      const textIdx = speciesList.findIndex(s =>
-        s.scientificName.toLowerCase().includes(jumpInput.toLowerCase())
-      );
-      if (textIdx !== -1) {
-        setCurrentIndex(textIdx);
-        setJumpInput('');
-      }
+      alert(`No se encontró la especie "${jumpInput}".`);
     }
   };
 
+  // Update species handler: saves locally and syncs to Firestore if admin
   const handleUpdateCurrentSpecies = (updated: Partial<OrchidSpecies>) => {
+    if (!isAdmin) {
+      alert('Modo de solo lectura: Solo la cuenta del autor (Josué Jacobo - emiliojacobg@gmail.com) puede guardar cambios permanentes.');
+      return;
+    }
+
     setSpeciesList(prev => {
       const copy = [...prev];
-      copy[currentIndex] = { ...copy[currentIndex], ...updated };
+      const targetIdx = copy.findIndex(s => s.speciesCode === currentSpecies.speciesCode);
+      if (targetIdx !== -1) {
+        const merged = { ...copy[targetIdx], ...updated };
+        copy[targetIdx] = merged;
+        // Save to cloud Firestore so it stays for EVERYONE
+        saveSpeciesToFirestore(merged);
+      }
       return copy;
     });
   };
 
   const handleAddNewSpecies = (newSpecies: OrchidSpecies) => {
+    if (!isAdmin) {
+      alert('Solo el propietario puede agregar nuevas especies al catálogo.');
+      return;
+    }
     setSpeciesList(prev => [...prev, newSpecies]);
     setCurrentIndex(speciesList.length);
+    saveSpeciesToFirestore(newSpecies);
   };
 
   const handleResetData = () => {
-    if (window.confirm('¿Deseas restablecer el catálogo al estado inicial original? Se perderán las fotos personalizadas locales.')) {
-      localStorage.removeItem(STORAGE_KEY);
-      setSpeciesList(INITIAL_SPECIES_LIST);
-      setCurrentIndex(defaultIdx);
+    if (!isAdmin) {
+      alert('Acción restringida al autor.');
+      return;
     }
+    localStorage.removeItem(STORAGE_KEY);
+    setSpeciesList(INITIAL_SPECIES_LIST);
+    setCurrentIndex(0);
   };
 
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        document.activeElement?.tagName === 'INPUT' ||
-        document.activeElement?.tagName === 'TEXTAREA'
-      ) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
       if (e.key === 'ArrowLeft') handlePrev();
@@ -196,251 +301,252 @@ export default function App() {
   }, [speciesList.length]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans select-none">
-      {/* ===================== TOP GLOBAL APP BAR ===================== */}
-      <header className="no-print bg-slate-900 border-b border-slate-800 px-3 sm:px-6 py-2.5 flex items-center justify-between gap-3 sticky top-0 z-40 shadow-lg">
-        {/* Brand & Stats */}
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-300 text-slate-950 flex items-center justify-center font-black text-lg shadow-md">
-            🪻
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-sm sm:text-base font-black tracking-wide text-white font-serif uppercase">
-                Atlas de Orquídeas de México
-              </h1>
-              <span className="hidden sm:inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
-                6" × 9" KDP
-              </span>
+    <div className="min-h-screen bg-[#080d19] text-slate-100 flex flex-col font-sans select-none antialiased">
+      {/* ===================== SLEEK BOTANICAL APP HEADER ===================== */}
+      <header className="no-print bg-slate-950/95 backdrop-blur-md border-b border-slate-800/80 px-3 sm:px-6 py-2 sticky top-0 z-40 shadow-lg">
+        <div className="flex items-center justify-between gap-2 max-w-7xl mx-auto">
+          {/* Logo & Brand */}
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-emerald-400 text-slate-950 flex items-center justify-center font-black text-base shadow-sm flex-shrink-0">
+              🪻
             </div>
-            <div className="text-[11px] text-slate-400 flex items-center gap-2">
-              <span>{speciesList.length} Especies Continuas</span>
-              <span>•</span>
-              <span className="text-emerald-400 font-medium">
-                {speciesList.filter(s => s.isEndemic).length} Endémicas
-              </span>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs sm:text-sm font-bold tracking-tight text-white uppercase font-serif">
+                  Atlas Botánico
+                </span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold">
+                  México
+                </span>
+              </div>
+              <div className="text-[10px] text-slate-400 hidden sm:flex items-center gap-1.5">
+                <span>{speciesList.length} especies</span>
+                <span>•</span>
+                <span className="text-emerald-400">
+                  {speciesList.filter(s => s.isEndemic).length} endémicas
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Search Input */}
+          <div className="flex-1 max-w-xs sm:max-w-md mx-1 sm:mx-4">
+            <form onSubmit={handleJumpSubmit} className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Buscar #, nombre científico o estado..."
+                value={jumpInput}
+                onChange={e => setJumpInput(e.target.value)}
+                className="w-full bg-slate-900/90 border border-slate-700/80 rounded-full pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-hidden focus:border-amber-400 transition-all shadow-inner"
+              />
+            </form>
+          </div>
+
+          {/* Top Right: View Mode & User Controls */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* View Mode Switcher for Desktop */}
+            <div className="hidden md:flex items-center bg-slate-900 border border-slate-800 rounded-xl p-0.5 text-xs">
+              <button
+                onClick={() => setViewMode('mobile')}
+                className={`px-2.5 py-1 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                  viewMode === 'mobile'
+                    ? 'bg-emerald-600 text-white shadow-xs font-semibold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Vista móvil adaptativa"
+              >
+                <Smartphone className="w-3.5 h-3.5" />
+                <span>Móvil</span>
+              </button>
+
+              <button
+                onClick={() => setViewMode('card6x9')}
+                className={`px-2.5 py-1 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                  viewMode === 'card6x9'
+                    ? 'bg-amber-500 text-slate-950 shadow-xs font-bold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Ficha editorial 6x9 Canva / KDP"
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>6" × 9" KDP</span>
+              </button>
+
+              <button
+                onClick={() => setViewMode('map')}
+                className={`px-2.5 py-1 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                  viewMode === 'map'
+                    ? 'bg-blue-600 text-white shadow-xs font-semibold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+                title="Mapa de distribución de México"
+              >
+                <Globe className="w-3.5 h-3.5" />
+                <span>Mapa</span>
+              </button>
+            </div>
+
+            {/* Author / Access Badge */}
+            <button
+              onClick={() => setIsAuthModalOpen(true)}
+              className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-all ${
+                isAdmin
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-xs'
+                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+              }`}
+              title={isAdmin ? 'Propietario activo: Josué Jacobo' : 'Iniciar sesión como autor'}
+            >
+              {isAdmin ? (
+                <>
+                  <span className="text-amber-400">👑</span>
+                  <span className="hidden lg:inline text-[11px]">Josué Jacobo</span>
+                </>
+              ) : (
+                <>
+                  <Lock className="w-3 h-3 text-slate-400" />
+                  <span className="hidden lg:inline text-[11px]">Acceso Autor</span>
+                </>
+              )}
+            </button>
+
+            {/* Tools Dropdown Menu */}
+            <div className="relative">
+              <button
+                onClick={() => setIsToolsDropdownOpen(!isToolsDropdownOpen)}
+                className="p-1.5 sm:px-2.5 sm:py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl border border-slate-800 text-xs flex items-center gap-1 transition-all"
+                title="Herramientas y exportación"
+              >
+                <Sliders className="w-3.5 h-3.5 text-slate-400" />
+                <span className="hidden sm:inline">Herramientas</span>
+              </button>
+
+              {isToolsDropdownOpen && (
+                <div 
+                  className="absolute right-0 mt-2 w-56 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl py-1.5 z-50 text-xs text-slate-200 divide-y divide-slate-800 animate-in fade-in"
+                  onClick={() => setIsToolsDropdownOpen(false)}
+                >
+                  <div className="py-1">
+                    <button
+                      onClick={() => setIsCatalogModalOpen(true)}
+                      className="w-full px-3.5 py-2 text-left hover:bg-slate-800 flex items-center gap-2.5"
+                    >
+                      <BookOpen className="w-4 h-4 text-amber-400" />
+                      <span>Catálogo Completo ({speciesList.length})</span>
+                    </button>
+                    <button
+                      onClick={() => setIsGoogleDocsModalOpen(true)}
+                      className="w-full px-3.5 py-2 text-left hover:bg-slate-800 flex items-center gap-2.5"
+                    >
+                      <FileText className="w-4 h-4 text-blue-400" />
+                      <span>Exportar a Google Docs</span>
+                    </button>
+                    <button
+                      onClick={() => setIsKdpModalOpen(true)}
+                      className="w-full px-3.5 py-2 text-left hover:bg-slate-800 flex items-center gap-2.5"
+                    >
+                      <Printer className="w-4 h-4 text-emerald-400" />
+                      <span>Imprimir / PDF 6" × 9"</span>
+                    </button>
+                    <button
+                      onClick={() => setIsBackupModalOpen(true)}
+                      className="w-full px-3.5 py-2 text-left hover:bg-slate-800 flex items-center gap-2.5"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                      <span>Respaldar Datos (JSON)</span>
+                    </button>
+                  </div>
+
+                  {isAdmin && (
+                    <div className="py-1 bg-amber-500/5">
+                      <button
+                        onClick={() => setIsEditorOpen(true)}
+                        className="w-full px-3.5 py-2 text-left hover:bg-slate-800 flex items-center gap-2.5 text-amber-300 font-semibold"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                        <span>Editar Especie Actual</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
+      </header>
 
-        {/* Center: Species Selector / Navigation */}
-        <div className="hidden lg:flex items-center gap-1.5 bg-slate-950/80 px-2 py-1 rounded-xl border border-slate-800">
+      {/* ===================== SUB-NAV TOOLBAR (GENERA & QUICK JUMP) ===================== */}
+      <div className="no-print bg-slate-900/60 border-b border-slate-800/80 px-3 sm:px-6 py-1.5 flex items-center justify-between gap-2 text-xs">
+        {/* Genera Filter Chips */}
+        <div className="flex items-center gap-1.5 overflow-x-auto max-w-2xl py-0.5">
+          <span className="text-slate-400 text-[10px] font-medium mr-1 flex-shrink-0">
+            Géneros:
+          </span>
           <button
-            onClick={handlePrev}
-            title="Especie anterior (← Flecha izquierda)"
-            className="p-1.5 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg transition-colors"
+            onClick={() => setSelectedGenusFilter('all')}
+            className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors flex-shrink-0 ${
+              selectedGenusFilter === 'all'
+                ? 'bg-amber-500 text-slate-950 font-bold'
+                : 'bg-slate-800/80 text-slate-300 hover:text-white'
+            }`}
           >
-            <ChevronLeft className="w-4 h-4" />
+            Todos
           </button>
+          {popularGenera.map(genus => (
+            <button
+              key={genus}
+              onClick={() => setSelectedGenusFilter(genus)}
+              className={`px-2 py-0.5 rounded-full text-[11px] font-serif italic transition-colors flex-shrink-0 ${
+                selectedGenusFilter === genus
+                  ? 'bg-amber-500 text-slate-950 font-bold not-italic'
+                  : 'bg-slate-800/80 text-slate-300 hover:text-white'
+              }`}
+            >
+              {genus}
+            </button>
+          ))}
+        </div>
 
-          <div className="px-2 text-center min-w-[200px]">
-            <span className="font-mono text-amber-400 font-bold text-xs">
-              #{currentSpecies.speciesCode}
-            </span>{' '}
-            <span className="text-xs font-serif italic text-white font-semibold">
-              {currentSpecies.scientificName}
-            </span>
-          </div>
-
+        {/* Endemic filter & Quick shuffle */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
           <button
-            onClick={handleNext}
-            title="Siguiente especie (→ Flecha derecha)"
-            className="p-1.5 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg transition-colors"
+            onClick={() => setFilterEndemicOnly(!filterEndemicOnly)}
+            className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border transition-colors flex items-center gap-1 ${
+              filterEndemicOnly
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                : 'bg-slate-800/80 text-slate-400 border-slate-700 hover:text-white'
+            }`}
           >
-            <ChevronRight className="w-4 h-4" />
+            <span>⭐ Endémicas</span>
           </button>
 
           <button
             onClick={handleRandom}
             title="Especie al azar"
-            className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-amber-400 rounded-lg transition-colors ml-1"
+            className="p-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition-colors"
           >
             <Shuffle className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Quick jump form */}
-          <form onSubmit={handleJumpToCode} className="ml-1 flex items-center">
-            <input
-              type="text"
-              placeholder="Ir a # o nombre..."
-              value={jumpInput}
-              onChange={e => setJumpInput(e.target.value)}
-              className="w-24 bg-slate-900 border border-slate-700 rounded-md px-2 py-1 text-[11px] text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono"
-            />
-          </form>
-        </div>
-
-        {/* Right Action Buttons */}
-        <div className="flex items-center gap-2">
-          {/* Continuous Catalogue Button */}
-          <button
-            onClick={() => setIsCatalogModalOpen(true)}
-            className="px-2.5 sm:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
-          >
-            <BookOpen className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden sm:inline">Catálogo</span>
-            <span className="font-mono text-[10px] bg-slate-900 px-1 py-0.2 rounded text-slate-400">
-              {speciesList.length}
-            </span>
-          </button>
-
-          {/* Google Docs Modal */}
-          <button
-            onClick={() => setIsGoogleDocsModalOpen(true)}
-            className="px-2.5 sm:px-3 py-1.5 bg-blue-600/90 hover:bg-blue-500 text-white font-semibold rounded-lg text-xs flex items-center gap-1.5 transition-colors shadow-sm"
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Google Docs</span>
-          </button>
-
-          {/* Amazon KDP / Print Button */}
-          <button
-            onClick={() => setIsKdpModalOpen(true)}
-            className="px-2.5 sm:px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1.5 transition-colors shadow-sm"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Imprimir / PDF 6x9</span>
-          </button>
-
-          {/* Backup & Security Button */}
-          <button
-            onClick={() => setIsBackupModalOpen(true)}
-            title="Copia de seguridad y protección de datos"
-            className="px-2.5 sm:px-3 py-1.5 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm"
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden sm:inline">Respaldar</span>
-          </button>
-
-          {/* Edit current species drawer */}
-          <button
-            onClick={() => setIsEditorOpen(true)}
-            className="p-1.5 sm:px-3 sm:py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-xs flex items-center gap-1.5 transition-colors shadow-sm"
-          >
-            <Edit3 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Editar Ficha</span>
-          </button>
-        </div>
-      </header>
-
-      {/* ===================== SUB-NAV TOOLBAR ===================== */}
-      <div className="no-print bg-slate-900/60 border-b border-slate-800/80 px-3 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
-        {/* Genera Filter Chips */}
-        <div className="flex items-center gap-1.5 overflow-x-auto max-w-2xl py-0.5">
-          <span className="text-slate-400 text-[11px] font-medium mr-1 flex-shrink-0">
-            Género:
-          </span>
-          <button
-            onClick={() => setSelectedGenusFilter('all')}
-            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap transition-colors ${
-              selectedGenusFilter === 'all'
-                ? 'bg-amber-500 text-slate-950'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
-          >
-            Todos ({speciesList.length})
-          </button>
-
-          {popularGenera.map(gen => (
-            <button
-              key={gen}
-              onClick={() => setSelectedGenusFilter(gen)}
-              className={`px-2 py-0.5 rounded-full text-[10px] font-serif italic whitespace-nowrap transition-colors ${
-                selectedGenusFilter === gen
-                  ? 'bg-amber-500 text-slate-950 font-bold not-italic'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              {gen}
-            </button>
-          ))}
-
-          <button
-            onClick={() => setFilterEndemicOnly(prev => !prev)}
-            className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap border transition-colors ${
-              filterEndemicOnly
-                ? 'bg-emerald-900 border-emerald-400 text-emerald-200'
-                : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
-            }`}
-          >
-            🌿 Solo Endémicas
-          </button>
-        </div>
-
-        {/* View Mode & Zoom Controls */}
-        <div className="flex items-center gap-2 ml-auto">
-          {/* View switcher */}
-          <div className="flex items-center bg-slate-950 rounded-lg p-0.5 border border-slate-800">
-            <button
-              onClick={() => setViewMode('card')}
-              className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-                viewMode === 'card'
-                  ? 'bg-slate-800 text-amber-300 font-bold'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Ficha 6x9
-            </button>
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-                viewMode === 'grid'
-                  ? 'bg-slate-800 text-amber-300 font-bold'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Muestrario ({filteredSpecies.length})
-            </button>
-          </div>
-
-          {/* Zoom controls (for card view) */}
-          {viewMode === 'card' && (
-            <div className="hidden sm:flex items-center gap-1 bg-slate-950 rounded-lg p-0.5 border border-slate-800 text-slate-400">
-              <button
-                onClick={() => setZoomLevel(prev => Math.max(0.65, prev - 0.1))}
-                className="p-1 hover:text-white"
-                title="Reducir zoom"
-              >
-                <ZoomOut className="w-3.5 h-3.5" />
-              </button>
-              <span className="text-[10px] font-mono px-1 w-10 text-center text-slate-200">
-                {Math.round(zoomLevel * 100)}%
-              </span>
-              <button
-                onClick={() => setZoomLevel(prev => Math.min(1.3, prev + 0.1))}
-                className="p-1 hover:text-white"
-                title="Aumentar zoom"
-              >
-                <ZoomIn className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-
-          {/* KDP Guides Quick Toggle */}
-          <button
-            onClick={() =>
-              setKdpGuides(prev => ({
-                ...prev,
-                showTrimLine: !prev.showTrimLine,
-                showSafeZone: !prev.showSafeZone
-              }))
-            }
-            title="Alternar guías de corte y margen KDP"
-            className={`p-1.5 rounded-lg border text-[11px] flex items-center gap-1 transition-colors ${
-              kdpGuides.showTrimLine
-                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Guías KDP</span>
           </button>
         </div>
       </div>
 
       {/* ===================== MAIN CANVAS / WORKSPACE ===================== */}
-      <main className="flex-1 overflow-auto p-3 sm:p-6 flex flex-col items-center justify-start bg-[#0a0f1d]">
-        {viewMode === 'card' ? (
+      <main className="flex-1 overflow-x-hidden overflow-y-auto p-2 sm:p-6 flex flex-col items-center justify-start bg-[#080d19]">
+        {/* VIEW 1: MOBILE FLUID BOTANICAL VIEW */}
+        {viewMode === 'mobile' && (
+          <MobileBotanicalView
+            species={currentSpecies}
+            canEdit={isAdmin}
+            onOpenEditor={() => setIsEditorOpen(true)}
+            onPrev={handlePrev}
+            onNext={handleNext}
+            onSwitchTo6x9={() => setViewMode('card6x9')}
+            onUpdateSpecies={handleUpdateCurrentSpecies}
+          />
+        )}
+
+        {/* VIEW 2: EXACT 6x9 CANVA KDP CARD (AUTO-SCALED WITH ZERO CLIPPING) */}
+        {viewMode === 'card6x9' && (
           <div className="w-full flex flex-col items-center">
             {/* Quick Navigation pill */}
             <div className="no-print flex items-center justify-between w-full max-w-xl mb-3 text-xs text-slate-400 px-2">
@@ -449,109 +555,141 @@ export default function App() {
                 className="flex items-center gap-1 hover:text-amber-400 transition-colors font-medium"
               >
                 <ChevronLeft className="w-4 h-4" />
-                <span>Anterior (Pág. {speciesList[currentIndex === 0 ? speciesList.length - 1 : currentIndex - 1]?.speciesCode})</span>
+                <span>Anterior</span>
               </button>
 
               <div className="flex items-center gap-2">
                 <span className="font-mono text-slate-300 font-bold">
-                  {currentIndex + 1} de {speciesList.length}
+                  #{currentSpecies.speciesCode} ({currentIndex + 1} de {speciesList.length})
                 </span>
-                <button
-                  onClick={() => setIsEditorOpen(true)}
-                  className="text-emerald-400 hover:underline flex items-center gap-1 font-semibold ml-2"
-                >
-                  <Edit3 className="w-3 h-3" />
-                  Editar datos
-                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => setIsEditorOpen(true)}
+                    className="text-emerald-400 hover:underline flex items-center gap-1 font-semibold ml-2"
+                  >
+                    <Edit3 className="w-3 h-3" />
+                    Editar
+                  </button>
+                )}
               </div>
 
               <button
                 onClick={handleNext}
                 className="flex items-center gap-1 hover:text-amber-400 transition-colors font-medium"
               >
-                <span>Siguiente (Pág. {speciesList[currentIndex === speciesList.length - 1 ? 0 : currentIndex + 1]?.speciesCode})</span>
+                <span>Siguiente</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
 
-            {/* THE EXACT 6x9 CANVA-STYLED PAGE */}
+            {/* THE EXACT 6x9 CANVA-STYLED PAGE WITH ZERO MOBILE CUT-OFF */}
             <OrchidCard6x9
               species={currentSpecies}
               kdpGuides={kdpGuides}
               onUpdateSpecies={handleUpdateCurrentSpecies}
               onOpenEditor={() => setIsEditorOpen(true)}
-              scale={zoomLevel}
+              scale={effectiveCardScale}
+              canEdit={isAdmin}
             />
+
+            {/* KDP Guides Toggle Bar below card */}
+            <div className="no-print mt-4 flex flex-wrap items-center justify-center gap-2 text-xs">
+              <button
+                onClick={() => setKdpGuides(p => ({ ...p, showTrimLine: !p.showTrimLine }))}
+                className={`px-3 py-1 rounded-lg border text-xs font-medium transition-colors ${
+                  kdpGuides.showTrimLine
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                    : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+                }`}
+              >
+                Corte KDP 6" × 9"
+              </button>
+              <button
+                onClick={() => setKdpGuides(p => ({ ...p, showBleedArea: !p.showBleedArea }))}
+                className={`px-3 py-1 rounded-lg border text-xs font-medium transition-colors ${
+                  kdpGuides.showBleedArea
+                    ? 'bg-red-500/20 text-red-300 border-red-500/40'
+                    : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+                }`}
+              >
+                Sangrado (+0.125")
+              </button>
+              <button
+                onClick={() => setKdpGuides(p => ({ ...p, showSafeZone: !p.showSafeZone }))}
+                className={`px-3 py-1 rounded-lg border text-xs font-medium transition-colors ${
+                  kdpGuides.showSafeZone
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+                }`}
+              >
+                Margen Seguro Interior
+              </button>
+            </div>
           </div>
-        ) : (
-          /* ===================== GRID / BOOK GALLERY VIEW ===================== */
-          <div className="w-full max-w-7xl">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <span>Muestrario de Páginas KDP 6" × 9"</span>
-                <span className="text-xs text-slate-400 font-normal">
-                  ({filteredSpecies.length} especies mostradas)
-                </span>
+        )}
+
+        {/* VIEW 3: FULL SCREEN DISTRIBUTION MAP */}
+        {viewMode === 'map' && (
+          <div className="w-full max-w-4xl mx-auto space-y-4 pb-20">
+            <div className="text-center space-y-1 mb-2">
+              <span className="font-mono text-amber-400 font-bold text-xs">
+                #{currentSpecies.speciesCode}
+              </span>
+              <h2 className="text-xl font-bold font-serif italic text-white">
+                {currentSpecies.scientificName}
               </h2>
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-slate-400">Haz clic en cualquier ficha para abrirla a tamaño completo</span>
-              </div>
+              <p className="text-xs text-slate-400">
+                Distribución en las 32 entidades federativas de México
+              </p>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-              {filteredSpecies.map(item => {
-                const isSelected = item.id === currentSpecies.id;
+            <MexicoDistributionMap
+              speciesStates={currentSpecies.mexicoStates || []}
+              scientificName={currentSpecies.scientificName}
+              canEdit={isAdmin}
+              onUpdateStates={(newStates) => handleUpdateCurrentSpecies({ mexicoStates: newStates })}
+            />
+          </div>
+        )}
+
+        {/* VIEW 4: GRID CATALOGUE VIEW */}
+        {viewMode === 'grid' && (
+          <div className="w-full max-w-6xl pb-24">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider">
+                Catálogo de Especies ({filteredSpecies.length})
+              </h2>
+              <span className="text-xs text-slate-400">
+                Página #{currentIndex + 1} seleccionada
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              {filteredSpecies.slice(0, 72).map(sp => {
+                const isSelected = sp.speciesCode === currentSpecies.speciesCode;
                 return (
                   <div
-                    key={item.id}
+                    key={sp.id}
                     onClick={() => {
-                      setCurrentIndex(item.continuousIndex - 1);
-                      setViewMode('card');
+                      const idx = speciesList.findIndex(s => s.speciesCode === sp.speciesCode);
+                      if (idx !== -1) setCurrentIndex(idx);
+                      setViewMode(isMobile ? 'mobile' : 'card6x9');
                     }}
-                    className={`group relative bg-white text-slate-900 rounded-lg overflow-hidden border-2 cursor-pointer shadow-md transition-all hover:scale-[1.02] flex flex-col justify-between ${
+                    className={`p-2.5 rounded-xl border cursor-pointer transition-all ${
                       isSelected
-                        ? 'border-amber-400 ring-2 ring-amber-400'
-                        : 'border-slate-800 hover:border-slate-600'
+                        ? 'bg-amber-500/20 border-amber-400 ring-2 ring-amber-400/50 shadow-md'
+                        : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
                     }`}
-                    style={{ aspectRatio: '2 / 3' }}
                   >
-                    {/* Header bar */}
-                    <div className="bg-[#0b1320] text-white p-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[9px] font-mono text-amber-400 font-bold">
-                          {item.speciesCode}
-                        </span>
-                        {item.isEndemic && (
-                          <span className="text-[8px] bg-emerald-900 text-emerald-300 px-1 rounded font-bold">
-                            Endémica
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[11px] font-serif font-bold italic truncate mt-0.5">
-                        {item.scientificName}
-                      </div>
+                    <div className="flex justify-between items-center text-[10px] mb-1">
+                      <span className="font-mono text-amber-400 font-bold">#{sp.speciesCode}</span>
+                      {sp.isEndemic && <span className="text-emerald-400">⭐</span>}
                     </div>
-
-                    {/* Photo preview */}
-                    <div className="flex-1 bg-slate-900 overflow-hidden relative">
-                      <img
-                        src={item.photoUrl1 || 'https://images.unsplash.com/photo-1563245372-f21724e3856d?auto=format&fit=crop&w=400&q=80'}
-                        alt={item.scientificName}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
-                        <span className="text-[10px] text-white font-medium">
-                          Abrir Ficha 6×9 →
-                        </span>
-                      </div>
+                    <div className="text-xs font-serif italic font-semibold text-white truncate">
+                      {sp.scientificName}
                     </div>
-
-                    {/* Footer */}
-                    <div className="p-1.5 bg-slate-50 border-t border-slate-200 text-[9px] flex justify-between items-center text-slate-700">
-                      <span className="truncate font-semibold">{item.genus}</span>
-                      <span className="font-mono text-slate-500 font-bold">
-                        Pág. {item.speciesCode}
-                      </span>
+                    <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                      {sp.genus}
                     </div>
                   </div>
                 );
@@ -561,20 +699,84 @@ export default function App() {
         )}
       </main>
 
+      {/* ===================== BOTTOM MOBILE NAVIGATION DOCK ===================== */}
+      <nav className="no-print md:hidden fixed bottom-0 inset-x-0 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800/90 py-2 px-3 z-40 shadow-2xl flex items-center justify-around">
+        <button
+          onClick={() => setViewMode('mobile')}
+          className={`flex flex-col items-center gap-1 transition-all ${
+            viewMode === 'mobile' ? 'text-emerald-400 scale-105' : 'text-slate-400'
+          }`}
+        >
+          <Smartphone className="w-5 h-5" />
+          <span className="text-[10px] font-bold">Móvil</span>
+        </button>
+
+        <button
+          onClick={() => setViewMode('card6x9')}
+          className={`flex flex-col items-center gap-1 transition-all ${
+            viewMode === 'card6x9' ? 'text-amber-400 scale-105' : 'text-slate-400'
+          }`}
+        >
+          <Layers className="w-5 h-5" />
+          <span className="text-[10px] font-bold">Ficha 6×9</span>
+        </button>
+
+        <button
+          onClick={() => setViewMode('map')}
+          className={`flex flex-col items-center gap-1 transition-all ${
+            viewMode === 'map' ? 'text-blue-400 scale-105' : 'text-slate-400'
+          }`}
+        >
+          <Globe className="w-5 h-5" />
+          <span className="text-[10px] font-bold">Mapa</span>
+        </button>
+
+        <button
+          onClick={() => setIsCatalogModalOpen(true)}
+          className="flex flex-col items-center gap-1 text-slate-400 active:text-white"
+        >
+          <BookOpen className="w-5 h-5 text-amber-400/90" />
+          <span className="text-[10px] font-medium">Catálogo</span>
+        </button>
+
+        {isAdmin ? (
+          <button
+            onClick={() => setIsEditorOpen(true)}
+            className="flex flex-col items-center gap-1 text-emerald-400 active:scale-105"
+          >
+            <Edit3 className="w-5 h-5" />
+            <span className="text-[10px] font-bold">Editar</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => setIsAuthModalOpen(true)}
+            className="flex flex-col items-center gap-1 text-slate-500 active:text-slate-300"
+          >
+            <Lock className="w-5 h-5" />
+            <span className="text-[10px]">Autor</span>
+          </button>
+        )}
+      </nav>
+
       {/* ===================== MODALS & DRAWERS ===================== */}
-      <OrchidEditorDrawer
-        species={currentSpecies}
-        isOpen={isEditorOpen}
-        onClose={() => setIsEditorOpen(false)}
-        onSave={handleUpdateCurrentSpecies}
-      />
+      {isAdmin && (
+        <OrchidEditorDrawer
+          species={currentSpecies}
+          isOpen={isEditorOpen}
+          onClose={() => setIsEditorOpen(false)}
+          onSave={handleUpdateCurrentSpecies}
+        />
+      )}
 
       <ContinuousIndexModal
         speciesList={speciesList}
         currentIndex={currentIndex}
         isOpen={isCatalogModalOpen}
         onClose={() => setIsCatalogModalOpen(false)}
-        onSelectSpecies={idx => setCurrentIndex(idx)}
+        onSelectSpecies={idx => {
+          setCurrentIndex(idx);
+          setIsCatalogModalOpen(false);
+        }}
         onAddNewSpecies={handleAddNewSpecies}
       />
 
@@ -598,10 +800,22 @@ export default function App() {
         isOpen={isBackupModalOpen}
         onClose={() => setIsBackupModalOpen(false)}
         onRestoreBackup={(restored) => {
+          if (!isAdmin) {
+            alert('Solo el propietario puede restaurar copias globales.');
+            return;
+          }
           setSpeciesList(restored);
           setCurrentIndex(0);
         }}
         onResetToDefaults={handleResetData}
+      />
+
+      <AdminAuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        currentUser={currentUser}
+        isAdmin={isAdmin}
+        onAdminStateChange={(status) => setIsAdmin(status)}
       />
     </div>
   );
