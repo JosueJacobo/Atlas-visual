@@ -3355,12 +3355,20 @@ export const GENUS_SAMPLE_PHOTOS: Record<string, PhotoRecord> = {
   }
 };
 
+export function isPhotoUrlHidden(url: string | undefined, hiddenPhotos?: string[]): boolean {
+  if (!url) return true;
+  if (!hiddenPhotos || hiddenPhotos.length === 0) return false;
+  const cleanUrl = url.split('?')[0].trim();
+  return hiddenPhotos.some(h => h === url || h.split('?')[0].trim() === cleanUrl);
+}
+
 export function resolveSpeciesPhotos(species: {
   scientificName: string;
   genus: string;
   photoUrl1?: string;
   photoUrl2?: string;
   hiddenPhotos?: string[];
+  noDefaultPhoto?: boolean;
   photoCredit?: string;
 }): {
   photo1: string;
@@ -3369,30 +3377,49 @@ export function resolveSpeciesPhotos(species: {
   isExactSpeciesPhoto: boolean;
   isOpenLicense: boolean;
 } {
-  const hidden = new Set(species.hiddenPhotos || []);
+  const hiddenList = species.hiddenPhotos || [];
   const exactMatch = SPECIES_OPEN_PHOTOS[species.scientificName];
   const genusMatch = GENUS_SAMPLE_PHOTOS[species.genus] || GENUS_SAMPLE_PHOTOS.Default;
 
-  const candidates = [
+  // If user explicitly cleared all default photos for this species
+  if (species.noDefaultPhoto) {
+    const custom1 = species.photoUrl1 && !isPhotoUrlHidden(species.photoUrl1, hiddenList) ? species.photoUrl1 : '';
+    const custom2 = species.photoUrl2 && !isPhotoUrlHidden(species.photoUrl2, hiddenList) ? species.photoUrl2 : '';
+    return {
+      photo1: custom1 || custom2 || '',
+      photo2: custom2 || custom1 || '',
+      credit: species.photoCredit || 'Sin fotografía asignada',
+      isExactSpeciesPhoto: Boolean(custom1 || custom2),
+      isOpenLicense: true
+    };
+  }
+
+  const rawCandidates = [
     species.photoUrl1,
     exactMatch?.photo1,
     species.photoUrl2,
     genusMatch.photo1,
-    genusMatch.photo2,
-    GENUS_SAMPLE_PHOTOS.Default.photo1,
-    GENUS_SAMPLE_PHOTOS.Default.photo2
-  ].filter((url): url is string => Boolean(url && !hidden.has(url)));
+    genusMatch.photo2
+  ];
 
-  const photo1 = candidates[0] || GENUS_SAMPLE_PHOTOS.Default.photo1;
-  const photo2 = candidates[1] || candidates[0] || GENUS_SAMPLE_PHOTOS.Default.photo2!;
+  // Deduplicate and filter out hidden photos
+  const candidates: string[] = [];
+  for (const c of rawCandidates) {
+    if (c && !isPhotoUrlHidden(c, hiddenList) && !candidates.includes(c)) {
+      candidates.push(c);
+    }
+  }
+
+  const photo1 = candidates[0] || '';
+  const photo2 = candidates[1] || candidates[0] || '';
 
   const hasCustomCredit =
     species.photoCredit &&
     !species.photoCredit.includes("Acervo EJJG / Orquídeas de México");
 
   const isExactValid = Boolean(
-    (species.photoUrl1 && !hidden.has(species.photoUrl1)) ||
-    (exactMatch?.photo1 && !hidden.has(exactMatch.photo1))
+    (species.photoUrl1 && !isPhotoUrlHidden(species.photoUrl1, hiddenList)) ||
+    (exactMatch?.photo1 && !isPhotoUrlHidden(exactMatch.photo1, hiddenList))
   );
 
   const credit = hasCustomCredit

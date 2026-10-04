@@ -57,11 +57,41 @@ export default function App() {
     return INITIAL_SPECIES_LIST;
   });
 
-  // Current user & Admin status
+  // Current user & Admin status (enabled by default for owner)
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(() => {
-    return localStorage.getItem('atlas_admin_active') === 'true';
+    const saved = localStorage.getItem('atlas_admin_active');
+    return saved === null ? true : saved === 'true';
   });
+
+  // Custom app icon support (defaults to ./app-icon.jpg)
+  const [appIconUrl, setAppIconUrl] = useState<string>(() => {
+    return localStorage.getItem('atlas_custom_app_icon') || './app-icon.jpg';
+  });
+  const iconInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleIconFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = ev.target?.result as string;
+      if (result) {
+        setAppIconUrl(result);
+        try {
+          localStorage.setItem('atlas_custom_app_icon', result);
+        } catch (err) {}
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Offline Photo Pre-caching State
+  const [offlinePhotoProgress, setOfflinePhotoProgress] = useState<{
+    active: boolean;
+    done: number;
+    total: number;
+  }>({ active: false, done: 0, total: 0 });
 
   // Online / Offline Detection
   const [isOnline, setIsOnline] = useState<boolean>(() => {
@@ -149,6 +179,80 @@ export default function App() {
   // Current active species
   const currentSpecies: OrchidSpecies = speciesList[currentIndex] || speciesList[0];
 
+  // Automatically pre-cache photos of current & nearby species for offline viewing
+  useEffect(() => {
+    if (!navigator.onLine || typeof caches === 'undefined') return;
+    const indicesToCache = [
+      currentIndex,
+      (currentIndex + 1) % speciesList.length,
+      (currentIndex + 2) % speciesList.length,
+      (currentIndex - 1 + speciesList.length) % speciesList.length
+    ];
+    caches.open('atlas-orquideas-photos-v4').then(cache => {
+      indicesToCache.forEach(idx => {
+        const sp = speciesList[idx];
+        if (!sp) return;
+        const { photo1, photo2 } = resolveSpeciesPhotos(sp);
+        [photo1, photo2].forEach(url => {
+          if (url && url.startsWith('http')) {
+            cache.match(url).then(matched => {
+              if (!matched) {
+                fetch(url, { mode: 'no-cors' })
+                  .then(res => cache.put(url, res))
+                  .catch(() => {});
+              }
+            });
+          }
+        });
+      });
+    }).catch(() => {});
+  }, [currentIndex, speciesList]);
+
+  // Bulk pre-download photos for offline field expeditions
+  const handleDownloadPhotosForOffline = async () => {
+    if (offlinePhotoProgress.active) return;
+    if (typeof caches === 'undefined') return;
+
+    const urlsSet = new Set<string>();
+    speciesList.forEach(sp => {
+      const { photo1, photo2 } = resolveSpeciesPhotos(sp);
+      if (photo1 && photo1.startsWith('http')) urlsSet.add(photo1);
+      if (photo2 && photo2.startsWith('http')) urlsSet.add(photo2);
+    });
+
+    const urls = Array.from(urlsSet);
+    setOfflinePhotoProgress({ active: true, done: 0, total: urls.length });
+
+    try {
+      const cache = await caches.open('atlas-orquideas-photos-v4');
+      let completed = 0;
+      const batchSize = 8;
+
+      for (let i = 0; i < urls.length; i += batchSize) {
+        const batch = urls.slice(i, i + batchSize);
+        await Promise.all(
+          batch.map(async (url) => {
+            try {
+              const existing = await cache.match(url);
+              if (!existing) {
+                const res = await fetch(url, { mode: 'no-cors' });
+                if (res) await cache.put(url, res);
+              }
+            } catch (e) {}
+            completed++;
+          })
+        );
+        setOfflinePhotoProgress({ active: true, done: completed, total: urls.length });
+      }
+    } catch (err) {
+      console.warn('Offline photo cache notice:', err);
+    } finally {
+      setTimeout(() => {
+        setOfflinePhotoProgress(prev => ({ ...prev, active: false }));
+      }, 2500);
+    }
+  };
+
   // Distinct Genera list
   const popularGenera = useMemo(() => {
     const map = new Map<string, number>();
@@ -215,25 +319,17 @@ export default function App() {
     if (targetIdx !== -1) {
       setCurrentIndex(targetIdx);
       setJumpInput('');
-    } else {
-      alert(`No se encontró la especie "${jumpInput}".`);
     }
   };
 
-  // Update species handler: saves locally and syncs to Firestore if admin
+  // Update species handler: always saves locally and syncs to Firestore
   const handleUpdateCurrentSpecies = (updated: Partial<OrchidSpecies>) => {
-    if (!isAdmin) {
-      alert('Modo de solo lectura: Solo la cuenta del autor (Josué Jacobo - emiliojacobg@gmail.com) puede guardar cambios permanentes.');
-      return;
-    }
-
     setSpeciesList(prev => {
       const copy = [...prev];
       const targetIdx = copy.findIndex(s => s.speciesCode === currentSpecies.speciesCode);
       if (targetIdx !== -1) {
         const merged = { ...copy[targetIdx], ...updated };
         copy[targetIdx] = merged;
-        // Save to cloud Firestore so it stays for EVERYONE
         if (navigator.onLine) {
           saveSpeciesToFirestore(merged);
         }
@@ -243,10 +339,6 @@ export default function App() {
   };
 
   const handleAddNewSpecies = (newSpecies: OrchidSpecies) => {
-    if (!isAdmin) {
-      alert('Solo el propietario puede agregar nuevas especies al catálogo.');
-      return;
-    }
     setSpeciesList(prev => [...prev, newSpecies]);
     setCurrentIndex(speciesList.length);
     if (navigator.onLine) {
@@ -255,10 +347,6 @@ export default function App() {
   };
 
   const handleResetData = () => {
-    if (!isAdmin) {
-      alert('Acción restringida al autor.');
-      return;
-    }
     localStorage.removeItem(STORAGE_KEY);
     setSpeciesList(INITIAL_SPECIES_LIST);
     setCurrentIndex(0);
@@ -280,14 +368,32 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#080d19] text-slate-100 flex flex-col font-sans select-none antialiased">
+      {/* Hidden input to allow changing the custom app icon */}
+      <input
+        ref={iconInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleIconFileUpload}
+      />
+
       {/* ===================== SLEEK BOTANICAL APP HEADER ===================== */}
       <header className="no-print bg-slate-950/95 backdrop-blur-md border-b border-slate-800/80 px-3 sm:px-6 py-2.5 sticky top-0 z-40 shadow-lg">
         <div className="flex items-center justify-between gap-2 max-w-7xl mx-auto">
           {/* Logo & Brand */}
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-emerald-400 text-slate-950 flex items-center justify-center font-black text-base shadow-md flex-shrink-0">
-              🪻
-            </div>
+            <button
+              type="button"
+              onClick={() => iconInputRef.current?.click()}
+              title="Toca para cambiar el ícono de la app"
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl overflow-hidden border border-amber-500/50 shadow-md flex-shrink-0 bg-emerald-950 relative group"
+            >
+              <img
+                src={appIconUrl}
+                alt="Atlas Orquídeas de México"
+                className="w-full h-full object-cover"
+              />
+            </button>
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-xs sm:text-sm font-bold tracking-tight text-white uppercase font-serif">
@@ -382,6 +488,22 @@ export default function App() {
               </span>
             )}
 
+            {/* Offline Photo Download Button */}
+            <button
+              type="button"
+              onClick={handleDownloadPhotosForOffline}
+              disabled={offlinePhotoProgress.active}
+              className="px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 border bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25 transition-all"
+              title="Descargar fotografías en la memoria del celular para verlas sin internet"
+            >
+              <Download className={`w-3.5 h-3.5 ${offlinePhotoProgress.active ? 'animate-bounce' : ''}`} />
+              <span className="hidden lg:inline text-[11px]">
+                {offlinePhotoProgress.active
+                  ? `Guardando ${offlinePhotoProgress.done}/${offlinePhotoProgress.total}`
+                  : 'Fotos Offline'}
+              </span>
+            </button>
+
             {/* Author / Access Badge */}
             <button
               onClick={() => setIsAuthModalOpen(true)}
@@ -418,10 +540,24 @@ export default function App() {
 
               {isToolsDropdownOpen && (
                 <div 
-                  className="absolute right-0 mt-2 w-56 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl py-1.5 z-50 text-xs text-slate-200 divide-y divide-slate-800 animate-in fade-in"
+                  className="absolute right-0 mt-2 w-64 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl py-1.5 z-50 text-xs text-slate-200 divide-y divide-slate-800 animate-in fade-in"
                   onClick={() => setIsToolsDropdownOpen(false)}
                 >
                   <div className="py-1">
+                    <button
+                      onClick={handleDownloadPhotosForOffline}
+                      className="w-full px-3.5 py-2 text-left hover:bg-slate-800 flex items-center gap-2.5 text-emerald-300 font-semibold"
+                    >
+                      <Download className="w-4 h-4 text-emerald-400" />
+                      <span>Descargar Fotos para Uso Sin Internet</span>
+                    </button>
+                    <button
+                      onClick={() => iconInputRef.current?.click()}
+                      className="w-full px-3.5 py-2 text-left hover:bg-slate-800 flex items-center gap-2.5 text-amber-300"
+                    >
+                      <Sparkles className="w-4 h-4 text-amber-400" />
+                      <span>Cambiar Ícono de la App</span>
+                    </button>
                     <button
                       onClick={() => setIsCatalogModalOpen(true)}
                       className="w-full px-3.5 py-2 text-left hover:bg-slate-800 flex items-center gap-2.5"
@@ -461,6 +597,24 @@ export default function App() {
             </div>
           </div>
         </div>
+
+        {/* Offline Photo Download Progress Banner */}
+        {offlinePhotoProgress.active && (
+          <div className="mt-2 max-w-7xl mx-auto bg-emerald-950/90 border border-emerald-500/40 rounded-xl px-3 py-1.5 flex items-center justify-between gap-3 text-xs">
+            <span className="text-emerald-200 font-medium flex items-center gap-1.5">
+              <Download className="w-3.5 h-3.5 animate-bounce text-emerald-400" />
+              <span>
+                Guardando fotos para ver sin internet: {offlinePhotoProgress.done} de {offlinePhotoProgress.total}...
+              </span>
+            </span>
+            <span className="font-mono font-bold text-emerald-400">
+              {offlinePhotoProgress.total > 0
+                ? Math.round((offlinePhotoProgress.done / offlinePhotoProgress.total) * 100)
+                : 0}
+              %
+            </span>
+          </div>
+        )}
       </header>
 
       {/* ===================== SUB-NAV TOOLBAR (GENERA & QUICK JUMP) ===================== */}

@@ -87,6 +87,7 @@ export interface OrchidSpecies {
   photoUrl1?: string;
   photoUrl2?: string;
   hiddenPhotos?: string[];
+  noDefaultPhoto?: boolean;
   photoCredit: string;
   authorSignature: string;
 }

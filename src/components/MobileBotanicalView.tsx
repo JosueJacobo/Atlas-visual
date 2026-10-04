@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { OrchidSpecies, NOM059_STATUS_MAP, ConservationStatus } from '../types';
-import { resolveSpeciesPhotos } from '../data/samplePhotos';
+import { resolveSpeciesPhotos, isPhotoUrlHidden } from '../data/samplePhotos';
 import { fetchOpenLicensePhotosForSpecies, OpenLicensePhoto } from '../services/openBotanicalPhotos';
 import { MexicoDistributionMap } from './MexicoDistributionMap';
 import { 
@@ -14,7 +14,9 @@ import {
   RefreshCw,
   Trash2,
   RotateCcw,
-  X
+  X,
+  Upload,
+  ImageOff
 } from 'lucide-react';
 
 interface MobileBotanicalViewProps {
@@ -37,9 +39,10 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number>(0);
   const [openPhotos, setOpenPhotos] = useState<OpenLicensePhoto[]>([]);
   const [loadingPhotos, setLoadingPhotos] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const resolved = resolveSpeciesPhotos(species);
-  const hiddenSet = React.useMemo(() => new Set(species.hiddenPhotos || []), [species.hiddenPhotos]);
+  const hiddenList = species.hiddenPhotos || [];
 
   useEffect(() => {
     setSelectedPhotoIndex(0);
@@ -72,52 +75,73 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
       isExact: boolean;
     }[] = [];
 
-    // 1. Custom or pre-bundled Wikimedia Commons exact species match
-    if ((species.photoUrl1 || resolved.isExactSpeciesPhoto) && !hiddenSet.has(resolved.photo1)) {
-      list.push({
-        url: resolved.photo1,
-        label: 'Flor Principal',
-        credit: resolved.credit,
-        license: 'Wikimedia Commons / Libre de Derechos',
+    const addUnique = (item: {
+      url: string;
+      label: string;
+      credit: string;
+      license: string;
+      isExact: boolean;
+    }) => {
+      if (!item.url) return;
+      if (isPhotoUrlHidden(item.url, hiddenList)) return;
+      const clean = item.url.split('?')[0].trim();
+      if (list.some(existing => existing.url === item.url || existing.url.split('?')[0].trim() === clean)) {
+        return;
+      }
+      list.push(item);
+    };
+
+    // 1. Custom uploaded photos always show even if noDefaultPhoto is true
+    if (species.photoUrl1 && !isPhotoUrlHidden(species.photoUrl1, hiddenList)) {
+      addUnique({
+        url: species.photoUrl1,
+        label: 'Foto Principal',
+        credit: species.photoCredit || resolved.credit,
+        license: 'Fotografía Seleccionada',
         isExact: true
       });
     }
 
-    if (species.photoUrl2 && !hiddenSet.has(species.photoUrl2)) {
-      list.push({
+    if (species.photoUrl2 && !isPhotoUrlHidden(species.photoUrl2, hiddenList)) {
+      addUnique({
         url: species.photoUrl2,
         label: 'Hábito / Detalle',
-        credit: resolved.credit,
-        license: 'Wikimedia Commons / Libre de Derechos',
+        credit: species.photoCredit || resolved.credit,
+        license: 'Fotografía Seleccionada',
         isExact: true
       });
     }
 
-    // 2. Live fetched open-license photos from iNaturalist (CC0/CC-BY) & Wikimedia Commons
-    for (const p of openPhotos) {
-      if (!hiddenSet.has(p.url) && !list.some(item => item.url === p.url)) {
-        list.push({
-          url: p.url,
-          label: p.isExactSpecies ? 'Ejemplar Botánico' : `Género ${species.genus}`,
-          credit: `${p.source}: ${p.author}`,
-          license: p.license,
-          isExact: p.isExactSpecies
-        });
-      }
+    // If user clicked "Quitar todas las fotos automáticas", stop here unless they uploaded custom photos
+    if (species.noDefaultPhoto) {
+      return list;
     }
 
-    // 3. Fallback genus open-license photos if list is empty
-    if (list.length === 0) {
-      list.push({
+    // 2. Pre-bundled exact Wikimedia Commons photo or genus photo
+    if (resolved.photo1) {
+      addUnique({
         url: resolved.photo1,
         label: 'Flor Principal',
         credit: resolved.credit,
-        license: 'Wikimedia / NaturaLista (Licencia Abierta)',
+        license: 'Wikimedia Commons / Libre de Derechos',
         isExact: resolved.isExactSpeciesPhoto
       });
     }
-    if (list.length === 1 && resolved.photo2 && resolved.photo2 !== list[0].url && !hiddenSet.has(resolved.photo2)) {
-      list.push({
+
+    // 3. Live fetched open-license photos from iNaturalist (CC0/CC-BY) & Wikimedia Commons
+    for (const p of openPhotos) {
+      addUnique({
+        url: p.url,
+        label: p.isExactSpecies ? 'Ejemplar Botánico' : `Género ${species.genus}`,
+        credit: `${p.source}: ${p.author}`,
+        license: p.license,
+        isExact: p.isExactSpecies
+      });
+    }
+
+    // 4. Secondary genus photo if available and not hidden
+    if (resolved.photo2) {
+      addUnique({
         url: resolved.photo2,
         label: 'Hábito / Planta',
         credit: resolved.credit,
@@ -127,41 +151,113 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
     }
 
     return list.slice(0, 8);
-  }, [species, resolved, openPhotos, hiddenSet]);
+  }, [species, resolved, openPhotos, hiddenList]);
 
   const safeIndex = Math.min(selectedPhotoIndex, Math.max(0, galleryItems.length - 1));
-  const activePhoto = galleryItems[safeIndex] || galleryItems[0];
+  const activePhoto = galleryItems[safeIndex] || null;
 
-  // Delete / Hide unwanted photo permanently
+  // Delete a specific photo immediately
   const handleDeletePhoto = (urlToRemove: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    if (!canEdit) return;
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (!urlToRemove) return;
+
+    const cleanRemove = urlToRemove.split('?')[0].trim();
+
+    // Immediately remove from local openPhotos state for instant UI update
+    setOpenPhotos(prev =>
+      prev.filter(p => p.url !== urlToRemove && p.url.split('?')[0].trim() !== cleanRemove)
+    );
 
     const currentHidden = species.hiddenPhotos || [];
-    const nextHidden = currentHidden.includes(urlToRemove)
-      ? currentHidden
-      : [...currentHidden, urlToRemove];
+    const nextHidden = Array.from(new Set([...currentHidden, urlToRemove, cleanRemove]));
 
     const updates: Partial<OrchidSpecies> = {
       hiddenPhotos: nextHidden
     };
 
-    if (species.photoUrl1 === urlToRemove) {
+    if (species.photoUrl1 === urlToRemove || species.photoUrl1?.split('?')[0].trim() === cleanRemove) {
       updates.photoUrl1 = '';
     }
-    if (species.photoUrl2 === urlToRemove) {
+    if (species.photoUrl2 === urlToRemove || species.photoUrl2?.split('?')[0].trim() === cleanRemove) {
       updates.photoUrl2 = '';
+    }
+
+    // If this was the last visible photo in the gallery, mark noDefaultPhoto = true so no fallback pops up
+    if (galleryItems.length <= 1) {
+      updates.noDefaultPhoto = true;
     }
 
     onUpdateSpecies(updates);
     setSelectedPhotoIndex(0);
   };
 
+  // Delete ALL photos for this species in 1 click
+  const handleClearAllPhotos = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const allCurrentUrls = galleryItems.flatMap(g => [g.url, g.url.split('?')[0].trim()]);
+    const nextHidden = Array.from(new Set([...(species.hiddenPhotos || []), ...allCurrentUrls]));
+
+    onUpdateSpecies({
+      photoUrl1: '',
+      photoUrl2: '',
+      noDefaultPhoto: true,
+      hiddenPhotos: nextHidden
+    });
+    setSelectedPhotoIndex(0);
+  };
+
   // Restore hidden photos for this species
   const handleRestoreDeletedPhotos = () => {
-    if (!canEdit) return;
-    onUpdateSpecies({ hiddenPhotos: [] });
+    onUpdateSpecies({
+      hiddenPhotos: [],
+      noDefaultPhoto: false
+    });
     setSelectedPhotoIndex(0);
+  };
+
+  // Quick 1-tap photo upload from phone camera roll
+  const handleQuickPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 900;
+        let w = img.width;
+        let h = img.height;
+        if (w > h && w > maxDim) {
+          h = Math.round((h * maxDim) / w);
+          w = maxDim;
+        } else if (h > maxDim) {
+          w = Math.round((w * maxDim) / h);
+          h = maxDim;
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+          onUpdateSpecies({
+            photoUrl1: dataUrl,
+            noDefaultPhoto: false,
+            photoCredit: 'Fotografía de: Josué Jacobo (Colección EJJG)'
+          });
+          setSelectedPhotoIndex(0);
+        }
+      };
+      img.src = ev.target?.result as string;
+    };
+    reader.readAsDataURL(file);
   };
 
   // Retrieve official NOM-059 details
@@ -191,6 +287,15 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
 
   return (
     <div className="w-full max-w-md mx-auto space-y-4 pb-28 text-slate-100 animate-in fade-in">
+      {/* Hidden File Input for Quick Photo Upload */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleQuickPhotoUpload}
+      />
+
       {/* Top Mobile Quick Switcher Bar */}
       <div className="flex items-center justify-between bg-slate-900/95 backdrop-blur-md px-3.5 py-2.5 rounded-2xl border border-slate-800 shadow-lg">
         <button
@@ -228,20 +333,109 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
 
       {/* Main Photographic Card */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
-        <div className="relative aspect-4/3 bg-slate-950 overflow-hidden">
-          <img
-            src={activePhoto.url}
-            alt={species.scientificName}
-            className="w-full h-full object-cover transition-all duration-300"
-          />
+        <div className="relative aspect-4/3 bg-slate-950 overflow-hidden flex items-center justify-center">
+          {activePhoto ? (
+            <>
+              <img
+                src={activePhoto.url}
+                alt={species.scientificName}
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover transition-all duration-300"
+              />
 
-          {/* Open-License Badge on Top Left */}
-          <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 z-10 max-w-[65%]">
-            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide bg-emerald-950/85 text-emerald-300 border border-emerald-500/40 backdrop-blur-md shadow-md flex items-center gap-1">
-              <Camera className="w-3 h-3 text-emerald-400 shrink-0" />
-              <span className="truncate">{activePhoto.license}</span>
-            </span>
-          </div>
+              {/* Open-License Badge on Top Left */}
+              <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 z-10 max-w-[65%]">
+                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide bg-emerald-950/85 text-emerald-300 border border-emerald-500/40 backdrop-blur-md shadow-md flex items-center gap-1">
+                  <Camera className="w-3 h-3 text-emerald-400 shrink-0" />
+                  <span className="truncate">{activePhoto.license}</span>
+                </span>
+              </div>
+
+              {/* Action Buttons on Main Photo (Pin, Upload, Delete) — Always Visible */}
+              <div className="absolute bottom-11 inset-x-3 z-20 flex items-center justify-end gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-white border border-slate-700 font-bold text-[10px] shadow-lg flex items-center gap-1 transition-all active:scale-95"
+                  title="Subir mi propia foto desde el celular"
+                >
+                  <Upload className="w-3 h-3 text-emerald-400" />
+                  <span>Subir mi foto</span>
+                </button>
+
+                {activePhoto.url !== species.photoUrl1 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onUpdateSpecies({
+                        photoUrl1: activePhoto.url,
+                        noDefaultPhoto: false,
+                        photoCredit: `${activePhoto.credit} (${activePhoto.license})`
+                      })
+                    }
+                    className="px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[10px] shadow-lg flex items-center gap-1 transition-all active:scale-95"
+                    title="Dejar esta foto como principal"
+                  >
+                    <Check className="w-3 h-3" />
+                    <span>Fijar</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={(e) => handleDeletePhoto(activePhoto.url, e)}
+                  className="px-2.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-[10px] shadow-lg flex items-center gap-1 transition-all active:scale-95"
+                  title="Quitar esta foto"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>Quitar esta foto</span>
+                </button>
+              </div>
+
+              {/* Photo Attribution Footer */}
+              <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black/90 via-black/60 to-transparent flex justify-between items-end text-[10px] text-slate-300">
+                <span className="font-semibold text-white">
+                  Autor ficha: {species.authorSignature || 'Josué Jacobo'}
+                </span>
+                <span className="text-amber-200/90 truncate max-w-[210px]">
+                  {activePhoto.credit}
+                </span>
+              </div>
+            </>
+          ) : (
+            /* Empty Photo State when user deletes all photos */
+            <div className="p-6 text-center space-y-3 flex flex-col items-center justify-center">
+              <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500">
+                <ImageOff className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-200">
+                  Fotografías descartadas para esta especie
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Puedes subir tu propia fotografía o restaurar las imágenes de la galería.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Subir mi foto</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRestoreDeletedPhotos}
+                  className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs flex items-center gap-1.5 border border-slate-700"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Restaurar fotos</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Conservation Status Badge on Top Right */}
           <div className="absolute top-3 right-3 z-10">
@@ -250,68 +444,43 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
               <span>NOM-059: {statusDetail.code}</span>
             </span>
           </div>
-
-          {/* Admin Action Buttons on Main Photo (Pin or Delete) */}
-          {canEdit && (
-            <div className="absolute bottom-11 right-3 z-20 flex items-center gap-1.5">
-              {activePhoto.url !== species.photoUrl1 && (
-                <button
-                  onClick={() =>
-                    onUpdateSpecies({
-                      photoUrl1: activePhoto.url,
-                      photoCredit: `${activePhoto.credit} (${activePhoto.license})`
-                    })
-                  }
-                  className="px-2.5 py-1 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[10px] shadow-lg flex items-center gap-1 transition-all"
-                  title="Guardar esta foto libre como principal para todos"
-                >
-                  <Check className="w-3 h-3" />
-                  <span>Fijar foto</span>
-                </button>
-              )}
-
-              <button
-                onClick={(e) => handleDeletePhoto(activePhoto.url, e)}
-                className="px-2.5 py-1 rounded-xl bg-red-600/95 hover:bg-red-500 text-white font-bold text-[10px] shadow-lg flex items-center gap-1 transition-all"
-                title="Eliminar / ocultar esta foto permanentemente"
-              >
-                <Trash2 className="w-3 h-3" />
-                <span>Eliminar foto</span>
-              </button>
-            </div>
-          )}
-
-          {/* Photo Attribution Footer */}
-          <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black/90 via-black/60 to-transparent flex justify-between items-end text-[10px] text-slate-300">
-            <span className="font-semibold text-white">
-              Autor ficha: {species.authorSignature || 'Josué Jacobo'}
-            </span>
-            <span className="text-amber-200/90 truncate max-w-[210px]">
-              {activePhoto.credit}
-            </span>
-          </div>
         </div>
 
         {/* Open-License Thumbnail Strip (Wikimedia Commons & NaturaLista CC) */}
         <div className="px-3.5 py-2.5 bg-slate-950/90 border-b border-slate-800">
-          <div className="flex items-center justify-between mb-2 gap-2">
+          <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
             <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-              <span>📸 Galería Libre de Derechos</span>
+              <span>📸 Galería ({galleryItems.length})</span>
               {loadingPhotos && <RefreshCw className="w-3 h-3 animate-spin text-amber-400" />}
             </span>
 
             <div className="flex items-center gap-2">
-              {canEdit && (species.hiddenPhotos?.length || 0) > 0 && (
+              {galleryItems.length > 0 && (
                 <button
+                  type="button"
+                  onClick={handleClearAllPhotos}
+                  className="text-[10px] text-red-400 hover:text-red-300 font-semibold flex items-center gap-0.5 bg-red-950/40 px-2 py-0.5 rounded-lg border border-red-500/30"
+                  title="Quitar todas las fotos de esta especie"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>Quitar todas</span>
+                </button>
+              )}
+
+              {((species.hiddenPhotos?.length || 0) > 0 || species.noDefaultPhoto) && (
+                <button
+                  type="button"
                   onClick={handleRestoreDeletedPhotos}
-                  className="text-[10px] text-amber-400 hover:underline flex items-center gap-0.5"
+                  className="text-[10px] text-amber-400 hover:underline flex items-center gap-0.5 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20"
                   title="Restaurar fotos eliminadas de esta especie"
                 >
                   <RotateCcw className="w-3 h-3" />
-                  <span>Restaurar ({species.hiddenPhotos?.length})</span>
+                  <span>Restaurar</span>
                 </button>
               )}
+
               <button
+                type="button"
                 onClick={handleRefreshOpenPhotos}
                 className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1"
                 title="Buscar más fotos libres en Wikimedia e iNaturalist"
@@ -322,43 +491,40 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
-            {galleryItems.map((item, idx) => (
-              <div
-                key={idx}
-                onClick={() => setSelectedPhotoIndex(idx)}
-                className={`relative w-14 h-14 rounded-xl overflow-hidden shrink-0 border-2 cursor-pointer transition-all ${
-                  safeIndex === idx
-                    ? 'border-amber-400 scale-105 shadow-md ring-2 ring-amber-400/30'
-                    : 'border-slate-800 opacity-65 hover:opacity-100'
-                }`}
-              >
-                <img
-                  src={item.url}
-                  alt={`${species.scientificName} vista ${idx + 1}`}
-                  className="w-full h-full object-cover"
-                />
-                {canEdit && (
+          {galleryItems.length > 0 && (
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              {galleryItems.map((item, idx) => (
+                <div
+                  key={item.url + idx}
+                  onClick={() => setSelectedPhotoIndex(idx)}
+                  className={`relative w-14 h-14 rounded-xl overflow-hidden shrink-0 border-2 cursor-pointer transition-all ${
+                    safeIndex === idx
+                      ? 'border-amber-400 scale-105 shadow-md ring-2 ring-amber-400/30'
+                      : 'border-slate-800 opacity-65 hover:opacity-100'
+                  }`}
+                >
+                  <img
+                    src={item.url}
+                    alt={`${species.scientificName} vista ${idx + 1}`}
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover"
+                  />
                   <button
+                    type="button"
                     onClick={(e) => handleDeletePhoto(item.url, e)}
-                    className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-red-600/90 hover:bg-red-500 text-white flex items-center justify-center shadow-md z-10"
+                    className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center shadow-md z-10"
                     title="Eliminar esta foto"
                   >
-                    <X className="w-2.5 h-2.5" />
+                    <X className="w-3 h-3" />
                   </button>
-                )}
-                {item.isExact && (
-                  <span className="absolute bottom-0 inset-x-0 bg-emerald-600/90 text-[8px] font-bold text-white text-center leading-tight py-0.2">
-                    Especie
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-          {canEdit && (
-            <p className="text-[10px] text-slate-500 mt-1">
-              💡 Toca la <strong className="text-red-400">✕</strong> en cualquier miniatura o <strong className="text-red-400">"Eliminar foto"</strong> para quitar las que no quieras.
-            </p>
+                  {item.isExact && (
+                    <span className="absolute bottom-0 inset-x-0 bg-emerald-600/90 text-[8px] font-bold text-white text-center leading-tight py-0.2">
+                      Especie
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
@@ -419,19 +585,17 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
               </div>
             </div>
 
-            {/* Official SEMARNAT Status Selector (Clickable for Admin) */}
+            {/* Official SEMARNAT Status Selector */}
             <div className="grid grid-cols-5 gap-1.5 text-center">
               {officialStatuses.map(item => {
                 const isSelected = statusDetail.code === item.code;
                 return (
                   <button
                     key={item.code}
-                    disabled={!canEdit}
-                    onClick={() => canEdit && onUpdateSpecies({ conservationStatus: item.code })}
+                    type="button"
+                    onClick={() => onUpdateSpecies({ conservationStatus: item.code })}
                     title={`${item.label}: ${item.desc}`}
-                    className={`p-1.5 rounded-xl border flex flex-col items-center justify-center transition-all ${
-                      canEdit ? 'cursor-pointer' : 'cursor-default'
-                    } ${
+                    className={`p-1.5 rounded-xl border flex flex-col items-center justify-center transition-all cursor-pointer ${
                       isSelected
                         ? `${item.color} ring-2 ring-emerald-500 font-black shadow-md scale-105`
                         : 'border-slate-800 bg-slate-900/60 text-slate-400 opacity-60 hover:opacity-100'
@@ -445,11 +609,6 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
                 );
               })}
             </div>
-            {canEdit && (
-              <span className="text-[10px] text-slate-500 mt-1.5 block text-center">
-                ✏️ Como autor puedes cambiar la categoría tocando los botones
-              </span>
-            )}
           </div>
 
           {/* Ecological & Botanical Features Grid */}
@@ -503,21 +662,19 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
         speciesStates={species.mexicoStates || []}
         scientificName={species.scientificName}
         customMapUrl={species.customMapUrl}
-        canEdit={canEdit}
+        canEdit={true}
         onUpdateStates={(newStates) => onUpdateSpecies({ mexicoStates: newStates })}
         onUpdateCustomMapUrl={(url) => onUpdateSpecies({ customMapUrl: url })}
       />
 
-      {/* Admin Quick Edit Action */}
-      {canEdit && (
-        <button
-          onClick={onOpenEditor}
-          className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-xl transition-all"
-        >
-          <Edit3 className="w-4 h-4" />
-          <span>Editar Ficha Completa de {species.scientificName}</span>
-        </button>
-      )}
+      {/* Quick Edit Action */}
+      <button
+        onClick={onOpenEditor}
+        className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-xl transition-all"
+      >
+        <Edit3 className="w-4 h-4" />
+        <span>Editar Ficha Completa de {species.scientificName}</span>
+      </button>
     </div>
   );
 };

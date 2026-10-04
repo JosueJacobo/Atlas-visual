@@ -1,15 +1,18 @@
-const CACHE_NAME = 'atlas-orquideas-mexico-v2';
+const APP_CACHE = 'atlas-orquideas-app-v4';
+const PHOTO_CACHE = 'atlas-orquideas-photos-v4';
 
 const CORE_ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './icon.svg'
+  './app-icon.jpg',
+  './icon-192.png',
+  './icon-512.png'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
+    caches.open(APP_CACHE).then((cache) => {
       return cache.addAll(CORE_ASSETS).catch((err) => {
         console.warn('Pre-caching core assets notice:', err);
       });
@@ -23,7 +26,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) {
+          if (key !== APP_CACHE && key !== PHOTO_CACHE) {
             return caches.delete(key);
           }
         })
@@ -33,38 +36,76 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Cache First with Network Fallback & Background Revalidation
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   if (request.method !== 'GET') return;
 
-  // Don't intercept Firebase Auth / Firestore network calls to let Firebase handle its own offline persistence
   const url = new URL(request.url);
-  if (url.origin.includes('firestore.googleapis.com') || url.origin.includes('identitytoolkit.googleapis.com')) {
+
+  // Skip Firebase real-time endpoints
+  if (
+    url.origin.includes('firestore.googleapis.com') ||
+    url.origin.includes('identitytoolkit.googleapis.com')
+  ) {
     return;
   }
 
-  event.respondWith(
-    caches.match(request).then((cachedResponse) => {
-      // Fetch from network to update cache in background
-      const fetchPromise = fetch(request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, responseToCache);
-            });
+  // 1. IMAGE REQUESTS (Local, Wikimedia Commons, iNaturalist S3):
+  // Cache-First so once a photo is seen or pre-downloaded, it works 100% WITHOUT INTERNET!
+  const isImage =
+    request.destination === 'image' ||
+    /\.(jpg|jpeg|png|webp|svg|gif)(\?.*)?$/i.test(url.pathname) ||
+    url.hostname.includes('wikimedia.org') ||
+    url.hostname.includes('inaturalist');
+
+  if (isImage && !url.pathname.includes('/w/api.php') && !url.pathname.includes('/v1/')) {
+    event.respondWith(
+      caches.open(PHOTO_CACHE).then((cache) => {
+        return cache.match(request, { ignoreSearch: false }).then((cachedImg) => {
+          if (cachedImg) {
+            return cachedImg;
           }
-          return networkResponse;
-        })
-        .catch(() => {
-          // If offline and requesting document (page), return cached index.html
+          return fetch(request)
+            .then((networkRes) => {
+              // Cache basic, cors, AND opaque responses so external photos work offline
+              if (
+                networkRes &&
+                (networkRes.status === 200 || networkRes.type === 'opaque')
+              ) {
+                cache.put(request, networkRes.clone()).catch(() => {});
+              }
+              return networkRes;
+            })
+            .catch(() => {
+              return caches.match('./app-icon.jpg');
+            });
+        });
+      })
+    );
+    return;
+  }
+
+  // 2. APP SHELL (HTML, JS, CSS):
+  // Network-First with Offline Cache Fallback so updates always appear immediately when online,
+  // and the full app works when offline!
+  event.respondWith(
+    fetch(request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const clone = networkResponse.clone();
+          caches.open(APP_CACHE).then((cache) => {
+            cache.put(request, clone).catch(() => {});
+          });
+        }
+        return networkResponse;
+      })
+      .catch(() => {
+        return caches.match(request).then((cached) => {
+          if (cached) return cached;
           if (request.destination === 'document') {
             return caches.match('./') || caches.match('./index.html');
           }
         });
-
-      return cachedResponse || fetchPromise;
-    })
+      })
   );
 });
