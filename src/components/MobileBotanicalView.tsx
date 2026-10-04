@@ -1,19 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { OrchidSpecies, NOM059_STATUS_MAP, ConservationStatus } from '../types';
-import { GENUS_SAMPLE_PHOTOS } from '../data/samplePhotos';
+import { resolveSpeciesPhotos } from '../data/samplePhotos';
+import { fetchOpenLicensePhotosForSpecies, OpenLicensePhoto } from '../services/openBotanicalPhotos';
 import { MexicoDistributionMap } from './MexicoDistributionMap';
 import { 
   ChevronLeft, 
   ChevronRight, 
-  MapPin, 
   Sparkles, 
   ShieldCheck, 
   Edit3, 
-  Share2, 
-  Compass,
-  CheckCircle2,
-  AlertTriangle,
-  Info
+  Camera,
+  Check,
+  RefreshCw,
+  ExternalLink
 } from 'lucide-react';
 
 interface MobileBotanicalViewProps {
@@ -33,12 +32,101 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
   onNext,
   onUpdateSpecies
 }) => {
-  const [selectedPhoto, setSelectedPhoto] = useState<1 | 2>(1);
-  const genusSample = GENUS_SAMPLE_PHOTOS[species.genus] || GENUS_SAMPLE_PHOTOS.Default;
-  const photo1 = species.photoUrl1 || genusSample.photo1;
-  const photo2 = species.photoUrl2 || genusSample.photo2;
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number>(0);
+  const [openPhotos, setOpenPhotos] = useState<OpenLicensePhoto[]>([]);
+  const [loadingPhotos, setLoadingPhotos] = useState<boolean>(false);
 
-  const currentPhoto = selectedPhoto === 1 ? photo1 : photo2;
+  const resolved = resolveSpeciesPhotos(species);
+
+  useEffect(() => {
+    setSelectedPhotoIndex(0);
+    let cancelled = false;
+    setLoadingPhotos(true);
+
+    fetchOpenLicensePhotosForSpecies(species.speciesCode, species.scientificName, species.genus)
+      .then((found) => {
+        if (!cancelled) {
+          setOpenPhotos(found);
+          setLoadingPhotos(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoadingPhotos(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [species.speciesCode, species.scientificName, species.genus]);
+
+  // Build unified gallery of copyright-free photos for this species
+  const galleryItems = React.useMemo(() => {
+    const list: {
+      url: string;
+      label: string;
+      credit: string;
+      license: string;
+      isExact: boolean;
+    }[] = [];
+
+    // 1. Custom or pre-bundled Wikimedia Commons exact species match
+    if (species.photoUrl1 || resolved.isExactSpeciesPhoto) {
+      list.push({
+        url: resolved.photo1,
+        label: 'Flor Principal',
+        credit: resolved.credit,
+        license: 'Wikimedia Commons / Libre de Derechos',
+        isExact: true
+      });
+    }
+
+    if (species.photoUrl2) {
+      list.push({
+        url: species.photoUrl2,
+        label: 'Hábito / Detalle',
+        credit: resolved.credit,
+        license: 'Wikimedia Commons / Libre de Derechos',
+        isExact: true
+      });
+    }
+
+    // 2. Live fetched open-license photos from iNaturalist (CC0/CC-BY) & Wikimedia Commons
+    for (const p of openPhotos) {
+      if (!list.some(item => item.url === p.url)) {
+        list.push({
+          url: p.url,
+          label: p.isExactSpecies ? 'Ejemplar Botánico' : `Género ${species.genus}`,
+          credit: `${p.source}: ${p.author}`,
+          license: p.license,
+          isExact: p.isExactSpecies
+        });
+      }
+    }
+
+    // 3. Fallback genus open-license photos if list is still < 2
+    if (list.length === 0) {
+      list.push({
+        url: resolved.photo1,
+        label: 'Flor Principal',
+        credit: resolved.credit,
+        license: 'Wikimedia / NaturaLista (Licencia Abierta)',
+        isExact: resolved.isExactSpeciesPhoto
+      });
+    }
+    if (list.length === 1 && resolved.photo2 && resolved.photo2 !== list[0].url) {
+      list.push({
+        url: resolved.photo2,
+        label: 'Hábito / Planta',
+        credit: resolved.credit,
+        license: 'Wikimedia / NaturaLista (Licencia Abierta)',
+        isExact: false
+      });
+    }
+
+    return list.slice(0, 6);
+  }, [species, resolved, openPhotos]);
+
+  const activePhoto = galleryItems[selectedPhotoIndex] || galleryItems[0];
 
   // Retrieve official NOM-059 details
   const rawStatus = (species.conservationStatus || 'NL').toUpperCase();
@@ -52,6 +140,18 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
     { code: 'E', label: 'E - Probablemente extinta', desc: 'Extinta en medio silvestre', color: 'border-purple-500 bg-purple-500/20 text-purple-300' },
     { code: 'NL', label: 'NL - No listada en NOM-059', desc: 'Silvestre común o fuera de riesgo', color: 'border-slate-600 bg-slate-800 text-slate-300' }
   ];
+
+  const handleRefreshOpenPhotos = async () => {
+    setLoadingPhotos(true);
+    const refreshed = await fetchOpenLicensePhotosForSpecies(
+      species.speciesCode,
+      species.scientificName,
+      species.genus,
+      true
+    );
+    setOpenPhotos(refreshed);
+    setLoadingPhotos(false);
+  };
 
   return (
     <div className="w-full max-w-md mx-auto space-y-4 pb-28 text-slate-100 animate-in fade-in">
@@ -94,33 +194,17 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
       <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
         <div className="relative aspect-4/3 bg-slate-950 overflow-hidden">
           <img
-            src={currentPhoto}
+            src={activePhoto.url}
             alt={species.scientificName}
             className="w-full h-full object-cover transition-all duration-300"
           />
 
-          {/* Photo Switcher Pills */}
-          <div className="absolute top-3 left-3 flex gap-1.5 z-10">
-            <button
-              onClick={() => setSelectedPhoto(1)}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold tracking-wide backdrop-blur-md transition-all ${
-                selectedPhoto === 1
-                  ? 'bg-amber-500 text-slate-950 shadow-md font-black'
-                  : 'bg-black/60 text-slate-300 hover:text-white border border-white/10'
-              }`}
-            >
-              Flor Principal
-            </button>
-            <button
-              onClick={() => setSelectedPhoto(2)}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold tracking-wide backdrop-blur-md transition-all ${
-                selectedPhoto === 2
-                  ? 'bg-amber-500 text-slate-950 shadow-md font-black'
-                  : 'bg-black/60 text-slate-300 hover:text-white border border-white/10'
-              }`}
-            >
-              Hábito / Planta
-            </button>
+          {/* Open-License Badge on Top Left */}
+          <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 z-10 max-w-[65%]">
+            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide bg-emerald-950/85 text-emerald-300 border border-emerald-500/40 backdrop-blur-md shadow-md flex items-center gap-1">
+              <Camera className="w-3 h-3 text-emerald-400 shrink-0" />
+              <span className="truncate">{activePhoto.license}</span>
+            </span>
           </div>
 
           {/* Conservation Status Badge on Top Right */}
@@ -131,14 +215,74 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
             </span>
           </div>
 
+          {/* Admin Quick Pin Photo Button */}
+          {canEdit && activePhoto.url !== species.photoUrl1 && (
+            <button
+              onClick={() =>
+                onUpdateSpecies({
+                  photoUrl1: activePhoto.url,
+                  photoCredit: `${activePhoto.credit} (${activePhoto.license})`
+                })
+              }
+              className="absolute bottom-11 right-3 z-20 px-2.5 py-1 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[10px] shadow-lg flex items-center gap-1 transition-all"
+              title="Guardar esta foto libre como principal para todos"
+            >
+              <Check className="w-3 h-3" />
+              <span>Fijar esta foto</span>
+            </button>
+          )}
+
           {/* Photo Attribution Footer */}
-          <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black/85 via-black/50 to-transparent flex justify-between items-end text-[10px] text-slate-300">
+          <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black/90 via-black/60 to-transparent flex justify-between items-end text-[10px] text-slate-300">
             <span className="font-semibold text-white">
-              Autor: {species.authorSignature || 'Josué Jacobo'}
+              Autor ficha: {species.authorSignature || 'Josué Jacobo'}
             </span>
-            <span className="text-slate-400 truncate max-w-[200px]">
-              {species.photoCredit}
+            <span className="text-amber-200/90 truncate max-w-[210px]">
+              {activePhoto.credit}
             </span>
+          </div>
+        </div>
+
+        {/* Open-License Thumbnail Strip (Wikimedia Commons & NaturaLista CC) */}
+        <div className="px-3.5 py-2.5 bg-slate-950/90 border-b border-slate-800">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+              <span>📸 Fotos sin Copyright (Wikimedia / NaturaLista CC)</span>
+              {loadingPhotos && <RefreshCw className="w-3 h-3 animate-spin text-amber-400" />}
+            </span>
+            <button
+              onClick={handleRefreshOpenPhotos}
+              className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1"
+              title="Buscar más fotos libres en Wikimedia e iNaturalist"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>Buscar más</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            {galleryItems.map((item, idx) => (
+              <button
+                key={idx}
+                onClick={() => setSelectedPhotoIndex(idx)}
+                className={`relative w-14 h-14 rounded-xl overflow-hidden shrink-0 border-2 transition-all ${
+                  selectedPhotoIndex === idx
+                    ? 'border-amber-400 scale-105 shadow-md ring-2 ring-amber-400/30'
+                    : 'border-slate-800 opacity-65 hover:opacity-100'
+                }`}
+              >
+                <img
+                  src={item.url}
+                  alt={`${species.scientificName} vista ${idx + 1}`}
+                  className="w-full h-full object-cover"
+                />
+                {item.isExact && (
+                  <span className="absolute bottom-0 inset-x-0 bg-emerald-600/90 text-[8px] font-bold text-white text-center leading-tight py-0.2">
+                    Especie
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
         </div>
 

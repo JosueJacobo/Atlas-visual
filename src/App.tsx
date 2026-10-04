@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { OrchidSpecies, ConservationStatus } from './types';
 import { INITIAL_SPECIES_LIST } from './data/speciesData';
+import { resolveSpeciesPhotos } from './data/samplePhotos';
 import { MobileBotanicalView } from './components/MobileBotanicalView';
 import { MexicoDistributionMap } from './components/MexicoDistributionMap';
 import { OrchidEditorDrawer } from './components/OrchidEditorDrawer';
@@ -572,6 +573,7 @@ export default function App() {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
               {filteredSpecies.slice(0, 96).map(sp => {
                 const isSelected = sp.speciesCode === currentSpecies.speciesCode;
+                const photoData = resolveSpeciesPhotos(sp);
                 return (
                   <div
                     key={sp.id}
@@ -580,21 +582,38 @@ export default function App() {
                       if (idx !== -1) setCurrentIndex(idx);
                       setViewMode('botanical');
                     }}
-                    className={`p-2.5 rounded-xl border cursor-pointer transition-all ${
+                    className={`rounded-2xl border overflow-hidden cursor-pointer transition-all flex flex-col ${
                       isSelected
                         ? 'bg-amber-500/20 border-amber-400 ring-2 ring-amber-400/50 shadow-md'
                         : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
                     }`}
                   >
-                    <div className="flex justify-between items-center text-[10px] mb-1">
-                      <span className="font-mono text-amber-400 font-bold">#{sp.speciesCode}</span>
-                      {sp.isEndemic && <span className="text-emerald-400">⭐</span>}
+                    <div className="relative aspect-4/3 bg-slate-950 overflow-hidden">
+                      <img
+                        src={photoData.photo1}
+                        alt={sp.scientificName}
+                        loading="lazy"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-xs text-[9px] font-mono text-amber-400 font-bold">
+                        #{sp.speciesCode}
+                      </div>
+                      {sp.isEndemic && (
+                        <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-emerald-500/90 text-slate-950 text-[9px] font-bold">
+                          ⭐
+                        </div>
+                      )}
                     </div>
-                    <div className="text-xs font-serif italic font-semibold text-white truncate">
-                      {sp.scientificName}
-                    </div>
-                    <div className="text-[10px] text-slate-400 truncate mt-0.5">
-                      {sp.genus}
+                    <div className="p-2.5">
+                      <div className="text-xs font-serif italic font-semibold text-white truncate">
+                        {sp.scientificName}
+                      </div>
+                      <div className="text-[10px] text-slate-400 truncate mt-0.5 flex items-center justify-between">
+                        <span>{sp.genus}</span>
+                        {photoData.isExactSpeciesPhoto && (
+                          <span className="text-[9px] text-emerald-400 font-medium">✓ Foto real</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
