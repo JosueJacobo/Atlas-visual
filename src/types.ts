@@ -86,6 +86,7 @@ export interface OrchidSpecies {
   conservationStatus: ConservationStatus;
   photoUrl1?: string;
   photoUrl2?: string;
+  hiddenPhotos?: string[];
   photoCredit: string;
   authorSignature: string;
 }

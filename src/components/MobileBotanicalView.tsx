@@ -12,7 +12,9 @@ import {
   Camera,
   Check,
   RefreshCw,
-  ExternalLink
+  Trash2,
+  RotateCcw,
+  X
 } from 'lucide-react';
 
 interface MobileBotanicalViewProps {
@@ -37,6 +39,7 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
   const [loadingPhotos, setLoadingPhotos] = useState<boolean>(false);
 
   const resolved = resolveSpeciesPhotos(species);
+  const hiddenSet = React.useMemo(() => new Set(species.hiddenPhotos || []), [species.hiddenPhotos]);
 
   useEffect(() => {
     setSelectedPhotoIndex(0);
@@ -59,7 +62,7 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
     };
   }, [species.speciesCode, species.scientificName, species.genus]);
 
-  // Build unified gallery of copyright-free photos for this species
+  // Build unified gallery of copyright-free photos for this species (excluding hidden/deleted ones)
   const galleryItems = React.useMemo(() => {
     const list: {
       url: string;
@@ -70,7 +73,7 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
     }[] = [];
 
     // 1. Custom or pre-bundled Wikimedia Commons exact species match
-    if (species.photoUrl1 || resolved.isExactSpeciesPhoto) {
+    if ((species.photoUrl1 || resolved.isExactSpeciesPhoto) && !hiddenSet.has(resolved.photo1)) {
       list.push({
         url: resolved.photo1,
         label: 'Flor Principal',
@@ -80,7 +83,7 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
       });
     }
 
-    if (species.photoUrl2) {
+    if (species.photoUrl2 && !hiddenSet.has(species.photoUrl2)) {
       list.push({
         url: species.photoUrl2,
         label: 'Hábito / Detalle',
@@ -92,7 +95,7 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
 
     // 2. Live fetched open-license photos from iNaturalist (CC0/CC-BY) & Wikimedia Commons
     for (const p of openPhotos) {
-      if (!list.some(item => item.url === p.url)) {
+      if (!hiddenSet.has(p.url) && !list.some(item => item.url === p.url)) {
         list.push({
           url: p.url,
           label: p.isExactSpecies ? 'Ejemplar Botánico' : `Género ${species.genus}`,
@@ -103,7 +106,7 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
       }
     }
 
-    // 3. Fallback genus open-license photos if list is still < 2
+    // 3. Fallback genus open-license photos if list is empty
     if (list.length === 0) {
       list.push({
         url: resolved.photo1,
@@ -113,7 +116,7 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
         isExact: resolved.isExactSpeciesPhoto
       });
     }
-    if (list.length === 1 && resolved.photo2 && resolved.photo2 !== list[0].url) {
+    if (list.length === 1 && resolved.photo2 && resolved.photo2 !== list[0].url && !hiddenSet.has(resolved.photo2)) {
       list.push({
         url: resolved.photo2,
         label: 'Hábito / Planta',
@@ -123,10 +126,43 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
       });
     }
 
-    return list.slice(0, 6);
-  }, [species, resolved, openPhotos]);
+    return list.slice(0, 8);
+  }, [species, resolved, openPhotos, hiddenSet]);
 
-  const activePhoto = galleryItems[selectedPhotoIndex] || galleryItems[0];
+  const safeIndex = Math.min(selectedPhotoIndex, Math.max(0, galleryItems.length - 1));
+  const activePhoto = galleryItems[safeIndex] || galleryItems[0];
+
+  // Delete / Hide unwanted photo permanently
+  const handleDeletePhoto = (urlToRemove: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!canEdit) return;
+
+    const currentHidden = species.hiddenPhotos || [];
+    const nextHidden = currentHidden.includes(urlToRemove)
+      ? currentHidden
+      : [...currentHidden, urlToRemove];
+
+    const updates: Partial<OrchidSpecies> = {
+      hiddenPhotos: nextHidden
+    };
+
+    if (species.photoUrl1 === urlToRemove) {
+      updates.photoUrl1 = '';
+    }
+    if (species.photoUrl2 === urlToRemove) {
+      updates.photoUrl2 = '';
+    }
+
+    onUpdateSpecies(updates);
+    setSelectedPhotoIndex(0);
+  };
+
+  // Restore hidden photos for this species
+  const handleRestoreDeletedPhotos = () => {
+    if (!canEdit) return;
+    onUpdateSpecies({ hiddenPhotos: [] });
+    setSelectedPhotoIndex(0);
+  };
 
   // Retrieve official NOM-059 details
   const rawStatus = (species.conservationStatus || 'NL').toUpperCase();
@@ -215,21 +251,34 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
             </span>
           </div>
 
-          {/* Admin Quick Pin Photo Button */}
-          {canEdit && activePhoto.url !== species.photoUrl1 && (
-            <button
-              onClick={() =>
-                onUpdateSpecies({
-                  photoUrl1: activePhoto.url,
-                  photoCredit: `${activePhoto.credit} (${activePhoto.license})`
-                })
-              }
-              className="absolute bottom-11 right-3 z-20 px-2.5 py-1 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[10px] shadow-lg flex items-center gap-1 transition-all"
-              title="Guardar esta foto libre como principal para todos"
-            >
-              <Check className="w-3 h-3" />
-              <span>Fijar esta foto</span>
-            </button>
+          {/* Admin Action Buttons on Main Photo (Pin or Delete) */}
+          {canEdit && (
+            <div className="absolute bottom-11 right-3 z-20 flex items-center gap-1.5">
+              {activePhoto.url !== species.photoUrl1 && (
+                <button
+                  onClick={() =>
+                    onUpdateSpecies({
+                      photoUrl1: activePhoto.url,
+                      photoCredit: `${activePhoto.credit} (${activePhoto.license})`
+                    })
+                  }
+                  className="px-2.5 py-1 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[10px] shadow-lg flex items-center gap-1 transition-all"
+                  title="Guardar esta foto libre como principal para todos"
+                >
+                  <Check className="w-3 h-3" />
+                  <span>Fijar foto</span>
+                </button>
+              )}
+
+              <button
+                onClick={(e) => handleDeletePhoto(activePhoto.url, e)}
+                className="px-2.5 py-1 rounded-xl bg-red-600/95 hover:bg-red-500 text-white font-bold text-[10px] shadow-lg flex items-center gap-1 transition-all"
+                title="Eliminar / ocultar esta foto permanentemente"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>Eliminar foto</span>
+              </button>
+            </div>
           )}
 
           {/* Photo Attribution Footer */}
@@ -245,28 +294,41 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
 
         {/* Open-License Thumbnail Strip (Wikimedia Commons & NaturaLista CC) */}
         <div className="px-3.5 py-2.5 bg-slate-950/90 border-b border-slate-800">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-2 gap-2">
             <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-              <span>📸 Fotos sin Copyright (Wikimedia / NaturaLista CC)</span>
+              <span>📸 Galería Libre de Derechos</span>
               {loadingPhotos && <RefreshCw className="w-3 h-3 animate-spin text-amber-400" />}
             </span>
-            <button
-              onClick={handleRefreshOpenPhotos}
-              className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1"
-              title="Buscar más fotos libres en Wikimedia e iNaturalist"
-            >
-              <RefreshCw className="w-3 h-3" />
-              <span>Buscar más</span>
-            </button>
+
+            <div className="flex items-center gap-2">
+              {canEdit && (species.hiddenPhotos?.length || 0) > 0 && (
+                <button
+                  onClick={handleRestoreDeletedPhotos}
+                  className="text-[10px] text-amber-400 hover:underline flex items-center gap-0.5"
+                  title="Restaurar fotos eliminadas de esta especie"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Restaurar ({species.hiddenPhotos?.length})</span>
+                </button>
+              )}
+              <button
+                onClick={handleRefreshOpenPhotos}
+                className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1"
+                title="Buscar más fotos libres en Wikimedia e iNaturalist"
+              >
+                <RefreshCw className="w-3 h-3" />
+                <span>Buscar más</span>
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center gap-2 overflow-x-auto pb-1">
             {galleryItems.map((item, idx) => (
-              <button
+              <div
                 key={idx}
                 onClick={() => setSelectedPhotoIndex(idx)}
-                className={`relative w-14 h-14 rounded-xl overflow-hidden shrink-0 border-2 transition-all ${
-                  selectedPhotoIndex === idx
+                className={`relative w-14 h-14 rounded-xl overflow-hidden shrink-0 border-2 cursor-pointer transition-all ${
+                  safeIndex === idx
                     ? 'border-amber-400 scale-105 shadow-md ring-2 ring-amber-400/30'
                     : 'border-slate-800 opacity-65 hover:opacity-100'
                 }`}
@@ -276,14 +338,28 @@ export const MobileBotanicalView: React.FC<MobileBotanicalViewProps> = ({
                   alt={`${species.scientificName} vista ${idx + 1}`}
                   className="w-full h-full object-cover"
                 />
+                {canEdit && (
+                  <button
+                    onClick={(e) => handleDeletePhoto(item.url, e)}
+                    className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-red-600/90 hover:bg-red-500 text-white flex items-center justify-center shadow-md z-10"
+                    title="Eliminar esta foto"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                )}
                 {item.isExact && (
                   <span className="absolute bottom-0 inset-x-0 bg-emerald-600/90 text-[8px] font-bold text-white text-center leading-tight py-0.2">
                     Especie
                   </span>
                 )}
-              </button>
+              </div>
             ))}
           </div>
+          {canEdit && (
+            <p className="text-[10px] text-slate-500 mt-1">
+              💡 Toca la <strong className="text-red-400">✕</strong> en cualquier miniatura o <strong className="text-red-400">"Eliminar foto"</strong> para quitar las que no quieras.
+            </p>
+          )}
         </div>
 
         {/* Taxonomic Info Body */}

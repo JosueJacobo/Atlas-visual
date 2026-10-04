@@ -3360,6 +3360,7 @@ export function resolveSpeciesPhotos(species: {
   genus: string;
   photoUrl1?: string;
   photoUrl2?: string;
+  hiddenPhotos?: string[];
   photoCredit?: string;
 }): {
   photo1: string;
@@ -3368,25 +3369,43 @@ export function resolveSpeciesPhotos(species: {
   isExactSpeciesPhoto: boolean;
   isOpenLicense: boolean;
 } {
+  const hidden = new Set(species.hiddenPhotos || []);
   const exactMatch = SPECIES_OPEN_PHOTOS[species.scientificName];
   const genusMatch = GENUS_SAMPLE_PHOTOS[species.genus] || GENUS_SAMPLE_PHOTOS.Default;
 
-  const photo1 = species.photoUrl1 || exactMatch?.photo1 || genusMatch.photo1;
-  const photo2 = species.photoUrl2 || genusMatch.photo2 || exactMatch?.photo1 || genusMatch.photo1;
+  const candidates = [
+    species.photoUrl1,
+    exactMatch?.photo1,
+    species.photoUrl2,
+    genusMatch.photo1,
+    genusMatch.photo2,
+    GENUS_SAMPLE_PHOTOS.Default.photo1,
+    GENUS_SAMPLE_PHOTOS.Default.photo2
+  ].filter((url): url is string => Boolean(url && !hidden.has(url)));
+
+  const photo1 = candidates[0] || GENUS_SAMPLE_PHOTOS.Default.photo1;
+  const photo2 = candidates[1] || candidates[0] || GENUS_SAMPLE_PHOTOS.Default.photo2!;
 
   const hasCustomCredit =
     species.photoCredit &&
     !species.photoCredit.includes("Acervo EJJG / Orquídeas de México");
 
+  const isExactValid = Boolean(
+    (species.photoUrl1 && !hidden.has(species.photoUrl1)) ||
+    (exactMatch?.photo1 && !hidden.has(exactMatch.photo1))
+  );
+
   const credit = hasCustomCredit
     ? species.photoCredit!
-    : exactMatch?.credit || genusMatch.credit;
+    : isExactValid && exactMatch
+    ? exactMatch.credit
+    : genusMatch.credit;
 
   return {
     photo1,
     photo2,
     credit,
-    isExactSpeciesPhoto: Boolean(species.photoUrl1 || exactMatch),
+    isExactSpeciesPhoto: isExactValid,
     isOpenLicense: true
   };
 }
