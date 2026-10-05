@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Atlas Botánico de Orquídeas de México</title>
+    <meta name="description" content="Guía botánica completa de las 1,182+ especies de orquídeas de México con fotos en alta resolución, mapas de distribución geográfica por estado y uso offline." />
+    <meta property="og:title" content="Atlas Botánico de Orquídeas de México" />
+    <meta property="og:description" content="Catálogo completo de orquídeas de México con fotografías, distribución geográfica por entidad federativa y taxonomía." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    
+    <!-- PWA & Mobile Meta Tags -->
+    <link rel="manifest" href="./manifest.json" />
+    <meta name="theme-color" content="#06140d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Atlas Orquídeas" />
+    <link rel="apple-touch-icon" href="./app-icon.jpg" />
+    <link rel="icon" type="image/jpeg" href="./app-icon.jpg" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script type="module" crossorigin src="./assets/index-CKNTAf_J.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-CLlJfROf.css">
+  </head>
+  <body class="bg-[#080d19] text-slate-100 overflow-x-hidden antialiased">
+    <div id="root"></div>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          var isDevPreview = window.location.hostname.indexOf('ais-dev') !== -1;
+          if (isDevPreview) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+              for (var i = 0; i < registrations.length; i++) {
+                registrations[i].unregister().catch(function() {});
+              }
+            }).catch(function() {});
+            return;
+          }
+          if (window.caches) {
+            caches.keys().then(function(keys) {
+              keys.forEach(function(k) {
+                if (k.indexOf('-v6') === -1) {
+                  caches.delete(k).catch(function() {});
+                }
+              });
+            }).catch(function() {});
+          }
+          var refreshing = false;
+          navigator.serviceWorker.addEventListener('controllerchange', function() {
+            if (refreshing) return;
+            refreshing = true;
+            window.location.reload();
+          });
+          navigator.serviceWorker.register('./sw.js?v=6')
+            .then(function(reg) {
+              if (reg && typeof reg.update === 'function') {
+                reg.update().catch(function() {});
+              }
+            })
+            .catch(function() {});
+        });
+      }
+    </script>
+  </body>
+</html>
